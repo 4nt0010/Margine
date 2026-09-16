@@ -307,17 +307,9 @@
 
   /* ---------- Editor view ---------- */
 
-  #editor-view { position: relative; }
-
-  .margin-rule {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 46px;
-    width: 1px;
-    background: var(--margin-line);
-    z-index: 0;
-    pointer-events: none;
+  #editor-view {
+    position: relative;
+    background: var(--paper); /* piatto: copre le righe del quaderno dello sfondo generale */
   }
 
   .editor-topbar {
@@ -336,20 +328,70 @@
 
   .save-indicator { font-size: 11.5px; color: var(--ink-dim); margin-right: 2px; min-width: 66px; text-align: right; }
 
+  .format-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 8px 10px;
+    margin: 10px 12px 0;
+    border-radius: var(--radius-glass);
+    flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    z-index: 2;
+    position: relative;
+  }
+  .format-toolbar::-webkit-scrollbar { display: none; }
+
+  .style-select {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--ink-strong);
+    padding: 7px 24px 7px 10px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23756D5B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    background-size: 13px;
+  }
+  .style-select:hover { background-color: rgba(255,255,255,0.5); }
+
+  .toolbar-divider { width: 1px; height: 20px; background: rgba(0,0,0,0.1); margin: 0 4px; flex-shrink: 0; }
+
+  .format-toolbar .icon-btn { width: 36px; height: 36px; flex-shrink: 0; }
+  .format-toolbar .icon-btn:hover { background: rgba(255,255,255,0.5); }
+  .format-toolbar .icon-btn.active { background: rgba(41, 51, 74, 0.14); color: var(--ink-strong); }
+
   .color-dots {
     display: flex;
     gap: 8px;
     padding: 8px 14px;
-    margin: 12px 12px 0;
+    margin: 10px 12px 0;
     width: fit-content;
     border-radius: var(--radius-pill);
     position: relative;
     z-index: 2;
   }
-  .color-dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid transparent; }
+  .color-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; }
   .color-dot.active { border-color: var(--ink-strong); }
 
-  .editor-scroll { flex: 1; overflow-y: auto; padding: 22px 24px 150px 56px; position: relative; z-index: 1; }
+  .editor-scroll { flex: 1; overflow-y: auto; padding: 22px 16px 60px; position: relative; z-index: 1; }
+
+  .document-page {
+    background: #FFFEFA;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 48px 52px;
+    border-radius: 6px;
+    box-shadow: 0 2px 20px rgba(50, 40, 15, 0.12), 0 0 0 1px rgba(50, 40, 15, 0.04);
+    min-height: calc(100vh - 260px);
+  }
+  @media (max-width: 560px) {
+    .document-page { padding: 30px 22px; }
+  }
 
   .subject-input { font-size: 13px; color: var(--ink-dim); font-weight: 500; width: 100%; margin-bottom: 6px; }
   .subject-input::placeholder { color: var(--ink-faint); }
@@ -367,28 +409,16 @@
   }
   .title-input::placeholder { color: var(--ink-faint); }
 
-  #body-editor { font-size: 16px; line-height: 30px; outline: none; min-height: 200px; color: var(--ink); }
+  #body-editor { font-size: 16px; line-height: 1.7; outline: none; min-height: 200px; color: var(--ink); }
   #body-editor:empty::before { content: attr(data-placeholder); color: var(--ink-faint); }
-  #body-editor p { margin: 0 0 0px; text-align: justify; }
-  #body-editor .block-heading { font-weight: 600; font-size: 15px; color: var(--ink-strong); }
-  #body-editor ul { margin: 0; padding-left: 22px; }
-  #body-editor li { line-height: 30px; }
+  #body-editor p { margin: 0 0 14px; text-align: justify; }
+  #body-editor h1 { font-family: var(--font-display); font-size: 23px; font-weight: 600; color: var(--ink-strong); margin: 22px 0 10px; }
+  #body-editor h2 { font-family: var(--font-display); font-size: 19px; font-weight: 600; color: var(--ink-strong); margin: 18px 0 8px; }
+  #body-editor ul, #body-editor ol { margin: 0 0 14px; padding-left: 24px; }
+  #body-editor li { margin-bottom: 5px; }
   #body-editor strong { font-weight: 600; color: var(--ink-strong); }
   #body-editor em { font-style: italic; }
-
-  .editor-toolbar {
-    position: absolute;
-    left: 50%;
-    bottom: 22px;
-    transform: translateX(-50%);
-    display: flex;
-    gap: 2px;
-    padding: 7px;
-    border-radius: var(--radius-pill);
-    z-index: 3;
-  }
-  .editor-toolbar .icon-btn { width: 40px; height: 40px; }
-  .editor-toolbar .icon-btn:hover { background: rgba(255,255,255,0.55); }
+  #body-editor u { text-decoration: underline; }
 
   /* ---------- Version sheet ---------- */
 
@@ -580,8 +610,6 @@
 
   <!-- EDITOR -->
   <div id="editor-view" class="view">
-    <div class="margin-rule"></div>
-
     <div class="editor-topbar glass">
       <button class="icon-btn" id="back-btn" title="Indietro">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
@@ -600,20 +628,43 @@
       </div>
     </div>
 
-    <div class="color-dots glass" id="color-dots"></div>
-
-    <div class="editor-scroll">
-      <input type="text" class="subject-input" id="subject-input" placeholder="Materia (facoltativo)">
-      <textarea class="title-input" id="title-input" placeholder="Titolo della lezione" rows="1"></textarea>
-      <div id="body-editor" contenteditable="true" data-placeholder="Scrivi qui. Vai a capo per formattare: “- ” per gli elenchi, una riga breve che finisce con “:” per i sotto-titoli, **grassetto** e *corsivo*."></div>
-    </div>
-
-    <div class="editor-toolbar glass">
-      <button class="icon-btn" id="bold-btn" title="Grassetto"><strong style="font-family: var(--font-display); font-size:16px;">B</strong></button>
-      <button class="icon-btn" id="italic-btn" title="Corsivo"><em style="font-family: var(--font-display); font-size:16px;">i</em></button>
+    <div class="format-toolbar glass">
+      <select id="style-select" class="style-select" title="Stile paragrafo">
+        <option value="p">Corpo</option>
+        <option value="h1">Titolo</option>
+        <option value="h2">Sottotitolo</option>
+      </select>
+      <span class="toolbar-divider"></span>
+      <button class="icon-btn" id="bold-btn" title="Grassetto"><strong style="font-family: var(--font-display); font-size:15px;">B</strong></button>
+      <button class="icon-btn" id="italic-btn" title="Corsivo"><em style="font-family: var(--font-display); font-size:15px;">i</em></button>
+      <button class="icon-btn" id="underline-btn" title="Sottolineato"><span style="text-decoration:underline; font-size:15px;">U</span></button>
+      <span class="toolbar-divider"></span>
       <button class="icon-btn" id="list-btn" title="Elenco puntato">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
       </button>
+      <button class="icon-btn" id="numbered-list-btn" title="Elenco numerato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="10" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="10" y1="18" x2="20" y2="18"/><text x="3" y="8.5" font-size="7" fill="currentColor" stroke="none" font-family="sans-serif">1</text><text x="3" y="14.5" font-size="7" fill="currentColor" stroke="none" font-family="sans-serif">2</text><text x="3" y="20.5" font-size="7" fill="currentColor" stroke="none" font-family="sans-serif">3</text></svg>
+      </button>
+      <span class="toolbar-divider"></span>
+      <button class="icon-btn" id="align-left-btn" title="Allinea a sinistra">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="18" y2="18"/></svg>
+      </button>
+      <button class="icon-btn" id="align-center-btn" title="Allinea al centro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="7" y1="12" x2="17" y2="12"/><line x1="5" y1="18" x2="19" y2="18"/></svg>
+      </button>
+      <button class="icon-btn" id="align-right-btn" title="Allinea a destra">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="6" y1="18" x2="20" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="color-dots glass" id="color-dots"></div>
+
+    <div class="editor-scroll">
+      <div class="document-page">
+        <input type="text" class="subject-input" id="subject-input" placeholder="Materia (facoltativo)">
+        <textarea class="title-input" id="title-input" placeholder="Titolo della lezione" rows="1"></textarea>
+        <div id="body-editor" contenteditable="true" data-placeholder="Scrivi qui. “- ” a inizio riga crea un elenco puntato, oppure usa la barra qui sopra per gli stili."></div>
+      </div>
     </div>
   </div>
 

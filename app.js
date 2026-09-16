@@ -90,9 +90,15 @@ const subjectInput = document.getElementById("subject-input");
 const titleInput = document.getElementById("title-input");
 const bodyEditor = document.getElementById("body-editor");
 
+const styleSelect = document.getElementById("style-select");
 const boldBtn = document.getElementById("bold-btn");
 const italicBtn = document.getElementById("italic-btn");
+const underlineBtn = document.getElementById("underline-btn");
 const listBtn = document.getElementById("list-btn");
+const numberedListBtn = document.getElementById("numbered-list-btn");
+const alignLeftBtn = document.getElementById("align-left-btn");
+const alignCenterBtn = document.getElementById("align-center-btn");
+const alignRightBtn = document.getElementById("align-right-btn");
 
 const versionBackdrop = document.getElementById("version-backdrop");
 const versionList = document.getElementById("version-list");
@@ -343,6 +349,7 @@ function loadIntoEditor(note) {
   bodyEditor.innerHTML = note.bodyHTML || "";
   renderColorDots(note.color || "mustard");
   saveIndicator.textContent = "";
+  styleSelect.value = "p";
 }
 
 backBtn.addEventListener("click", () => {
@@ -416,6 +423,10 @@ function finalizeBlock(el) {
     el.innerHTML = applyInlineFormatting(raw);
     return;
   }
+  if (el.tagName === "H1" || el.tagName === "H2") {
+    el.innerHTML = applyInlineFormatting(el.textContent);
+    return;
+  }
   const raw = el.textContent;
   const trimmed = raw.trim();
 
@@ -438,14 +449,6 @@ function finalizeBlock(el) {
     return;
   }
 
-  if (trimmed.length <= 42 && /[:：]$/.test(trimmed) && !/^https?:/i.test(trimmed)) {
-    const div = document.createElement(el.tagName === "P" ? "p" : "div");
-    div.className = "block-heading";
-    div.innerHTML = applyInlineFormatting(trimmed);
-    el.replaceWith(div);
-    return;
-  }
-
   el.innerHTML = applyInlineFormatting(raw);
 }
 
@@ -462,6 +465,11 @@ bodyEditor.addEventListener("keydown", (e) => {
       }, 0);
     }
   }
+  if (e.key === "Tab") {
+    // rientro/uscita di livello nelle liste, come in Word/Pages
+    e.preventDefault();
+    document.execCommand(e.shiftKey ? "outdent" : "indent");
+  }
 });
 
 bodyEditor.addEventListener("input", () => {
@@ -473,9 +481,48 @@ bodyEditor.addEventListener("blur", () => {
   if (lastActiveBlock) finalizeBlock(lastActiveBlock);
 });
 
+// ---------------------------------------------------------------------------
+// Toolbar — stili paragrafo, formattazione, elenchi, allineamento
+// ---------------------------------------------------------------------------
+
+styleSelect.addEventListener("change", () => {
+  bodyEditor.focus();
+  document.execCommand("formatBlock", false, styleSelect.value);
+  scheduleSave();
+});
+
 boldBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("bold"); scheduleSave(); });
 italicBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("italic"); scheduleSave(); });
+underlineBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("underline"); scheduleSave(); });
 listBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("insertUnorderedList"); scheduleSave(); });
+numberedListBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("insertOrderedList"); scheduleSave(); });
+alignLeftBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("justifyLeft"); scheduleSave(); });
+alignCenterBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("justifyCenter"); scheduleSave(); });
+alignRightBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("justifyRight"); scheduleSave(); });
+
+function updateToolbarState() {
+  const toggle = (btn, cmd) => {
+    try { btn.classList.toggle("active", document.queryCommandState(cmd)); }
+    catch (e) { /* ignore */ }
+  };
+  toggle(boldBtn, "bold");
+  toggle(italicBtn, "italic");
+  toggle(underlineBtn, "underline");
+  toggle(listBtn, "insertUnorderedList");
+  toggle(numberedListBtn, "insertOrderedList");
+  toggle(alignLeftBtn, "justifyLeft");
+  toggle(alignCenterBtn, "justifyCenter");
+  toggle(alignRightBtn, "justifyRight");
+
+  try {
+    const block = document.queryCommandValue("formatBlock").toLowerCase();
+    styleSelect.value = (block === "h1" || block === "h2") ? block : "p";
+  } catch (e) { /* ignore */ }
+}
+
+document.addEventListener("selectionchange", () => {
+  if (document.activeElement === bodyEditor) updateToolbarState();
+});
 
 // ---------------------------------------------------------------------------
 // Autosave + version backups
