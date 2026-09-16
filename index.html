@@ -1187,6 +1187,24 @@
   </div>
 </div>
 
+<!-- Print options -->
+<div class="sheet-backdrop" id="print-options-backdrop">
+  <div class="sheet">
+    <h3>Stampa / Esporta PDF</h3>
+    <div class="field">
+      <label for="print-fontsize-select">Dimensione carattere</label>
+      <select id="print-fontsize-select">
+        <option value="s">Piccolo</option>
+        <option value="m" selected>Normale</option>
+        <option value="l">Grande</option>
+        <option value="xl">Molto grande</option>
+      </select>
+    </div>
+    <button class="btn-primary" id="print-confirm-btn">Stampa</button>
+    <button class="sheet-close" id="print-options-close">Annulla</button>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script type="module" src="app.js"></script>

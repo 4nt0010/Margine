@@ -935,7 +935,7 @@ checklistBtn.addEventListener("click", () => {
 
 function toggleInlineWrap(tag, className) {
   const sel = window.getSelection();
-  if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+  if (!sel || !sel.rangeCount) return;
   const range = sel.getRangeAt(0);
   if (!bodyEditor.contains(range.commonAncestorContainer)) return;
 
@@ -944,19 +944,25 @@ function toggleInlineWrap(tag, className) {
   const existing = container && container.closest ? container.closest("." + className) : null;
 
   if (existing && bodyEditor.contains(existing)) {
+    // basta appoggiare il cursore dentro (anche senza riselezionare) per togliere l'effetto
     const parent = existing.parentNode;
     while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
     parent.removeChild(existing);
-  } else {
-    const wrapper = document.createElement(tag);
-    wrapper.className = className;
-    try {
-      range.surroundContents(wrapper);
-    } catch (err) {
-      const contents = range.extractContents();
-      wrapper.appendChild(contents);
-      range.insertNode(wrapper);
-    }
+    sel.removeAllRanges();
+    scheduleSave();
+    return;
+  }
+
+  if (sel.isCollapsed) return; // niente selezionato: non c'è testo da evidenziare/sottolineare
+
+  const wrapper = document.createElement(tag);
+  wrapper.className = className;
+  try {
+    range.surroundContents(wrapper);
+  } catch (err) {
+    const contents = range.extractContents();
+    wrapper.appendChild(contents);
+    range.insertNode(wrapper);
   }
   sel.removeAllRanges();
   scheduleSave();
@@ -971,12 +977,33 @@ fineUnderlineBtn.addEventListener("click", () => { bodyEditor.focus(); toggleInl
 
 tableBtn.addEventListener("click", () => {
   bodyEditor.focus();
-  document.execCommand(
-    "insertHTML", false,
-    '<table class="note-table"><tr><td><br></td><td><br></td><td><br></td></tr>' +
-    '<tr><td><br></td><td><br></td><td><br></td></tr>' +
-    '<tr><td><br></td><td><br></td><td><br></td></tr></table><p><br></p>'
-  );
+
+  const table = document.createElement("table");
+  table.className = "note-table";
+  for (let r = 0; r < 3; r++) {
+    const tr = document.createElement("tr");
+    for (let c = 0; c < 3; c++) {
+      const td = document.createElement("td");
+      td.innerHTML = "<br>";
+      tr.appendChild(td);
+    }
+    table.appendChild(tr);
+  }
+
+  const block = getCurrentBlock();
+  if (block && block.tagName === "P" && block.textContent.trim() === "") {
+    block.replaceWith(table);
+  } else if (block) {
+    block.insertAdjacentElement("afterend", table);
+  } else {
+    bodyEditor.appendChild(table);
+  }
+
+  const trailingP = document.createElement("p");
+  trailingP.innerHTML = "<br>";
+  table.insertAdjacentElement("afterend", trailingP);
+
+  placeCursorIn(table.rows[0].cells[0]);
   scheduleSave();
 });
 
@@ -1193,9 +1220,31 @@ deleteBtn.addEventListener("click", async () => {
 // Print / export
 // ---------------------------------------------------------------------------
 
+const printOptionsBackdrop = document.getElementById("print-options-backdrop");
+const printFontsizeSelect = document.getElementById("print-fontsize-select");
+const printConfirmBtn = document.getElementById("print-confirm-btn");
+const printOptionsClose = document.getElementById("print-options-close");
+
 printBtn.addEventListener("click", () => {
   moreBackdrop.classList.remove("active");
+  printOptionsBackdrop.classList.add("active");
+});
+
+printOptionsClose.addEventListener("click", () => printOptionsBackdrop.classList.remove("active"));
+printOptionsBackdrop.addEventListener("click", (e) => {
+  if (e.target === printOptionsBackdrop) printOptionsBackdrop.classList.remove("active");
+});
+
+const PRINT_SIZE_SCALE = { s: 0.87, m: 1, l: 1.15, xl: 1.3 };
+
+printConfirmBtn.addEventListener("click", () => {
+  printOptionsBackdrop.classList.remove("active");
+  runPrint(PRINT_SIZE_SCALE[printFontsizeSelect.value] || 1);
+});
+
+function runPrint(scale) {
   flushSave();
+  const pt = (base) => (base * scale).toFixed(1) + "pt";
 
   const subject = subjectInput.value || "";
   const title = titleInput.value || "Senza titolo";
@@ -1233,21 +1282,21 @@ printBtn.addEventListener("click", () => {
   @page { ${pageRule} }
   * { box-sizing: border-box; }
   body { font-family: 'Work Sans', sans-serif; color: #1a1a1a; margin: 0; }
-  .p-subject { font-size: 11pt; color: #666; margin-bottom: 4pt; }
-  .p-title { font-family: 'Fraunces', Georgia, serif; font-size: 26pt; font-weight: 500; margin-bottom: 4pt; }
-  .p-date { font-size: 9.5pt; color: #888; margin-bottom: 22pt; }
-  .p-body { font-size: 11.5pt; line-height: 1.55; }
+  .p-subject { font-size: ${pt(11)}; color: #666; margin-bottom: 4pt; }
+  .p-title { font-family: 'Fraunces', Georgia, serif; font-size: ${pt(26)}; font-weight: 500; margin-bottom: 4pt; }
+  .p-date { font-size: ${pt(9.5)}; color: #888; margin-bottom: 22pt; }
+  .p-body { font-size: ${pt(11.5)}; line-height: 1.55; }
   .p-body p { margin: 0 0 10pt; text-align: justify; }
-  .p-body .block-heading { font-weight: 600; font-size: 12.5pt; margin: 16pt 0 6pt; }
+  .p-body .block-heading { font-weight: 600; font-size: ${pt(12.5)}; margin: 16pt 0 6pt; }
   .p-body ul { margin: 0 0 10pt; padding-left: 18pt; }
   .p-body li { margin-bottom: 3pt; }
-  .p-body h1 { font-family: 'Fraunces', Georgia, serif; font-size: 16pt; font-weight: 600; margin: 16pt 0 6pt; }
-  .p-body h2 { font-family: 'Fraunces', Georgia, serif; font-size: 13pt; font-weight: 600; margin: 13pt 0 5pt; }
+  .p-body h1 { font-family: 'Fraunces', Georgia, serif; font-size: ${pt(16)}; font-weight: 600; margin: 16pt 0 6pt; }
+  .p-body h2 { font-family: 'Fraunces', Georgia, serif; font-size: ${pt(13)}; font-weight: 600; margin: 13pt 0 5pt; }
   .p-body table.note-table { border-collapse: collapse; width: 100%; margin: 0 0 10pt; }
-  .p-body table.note-table td { border: 1px solid #999; padding: 5pt 7pt; font-size: 10.5pt; }
+  .p-body table.note-table td { border: 1px solid #999; padding: 5pt 7pt; font-size: ${pt(10.5)}; }
   .p-body .toc-block { background: #f2f2f2; border-radius: 6pt; padding: 10pt 12pt; margin: 0 0 14pt; }
-  .p-body .toc-title { font-weight: 600; font-size: 8.5pt; text-transform: uppercase; color: #777; margin-bottom: 5pt; }
-  .p-body .toc-link { display: block; font-size: 10pt; color: #1a1a1a; text-decoration: none; padding: 1.5pt 0; }
+  .p-body .toc-title { font-weight: 600; font-size: ${pt(8.5)}; text-transform: uppercase; color: #777; margin-bottom: 5pt; }
+  .p-body .toc-link { display: block; font-size: ${pt(10)}; color: #1a1a1a; text-decoration: none; padding: 1.5pt 0; }
   .p-body .toc-link.toc-sub { padding-left: 10pt; color: #555; }
   .p-body ul.checklist { list-style: none; padding-left: 2pt; }
   .p-body ul.checklist li { display: flex; align-items: flex-start; gap: 6pt; }
@@ -1276,7 +1325,7 @@ printBtn.addEventListener("click", () => {
     iframe.contentWindow.focus();
     iframe.contentWindow.print();
   }, 350);
-});
+}
 
 // ---------------------------------------------------------------------------
 // Account
@@ -1589,5 +1638,6 @@ document.addEventListener("keydown", (e) => {
     newnoteBackdrop.classList.remove("active");
     materiaFormBackdrop.classList.remove("active");
     slotFormBackdrop.classList.remove("active");
+    printOptionsBackdrop.classList.remove("active");
   }
 });
