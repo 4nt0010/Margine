@@ -75,16 +75,28 @@ const pwMsg = document.getElementById("pw-msg");
 const signoutBtn = document.getElementById("signout-btn");
 const deleteAccountBtn = document.getElementById("delete-account-btn");
 const searchInput = document.getElementById("search-input");
+const sortSelect = document.getElementById("sort-select");
 const chipsRow = document.getElementById("chips-row");
 const cardsGrid = document.getElementById("cards-grid");
 const emptyState = document.getElementById("empty-state");
 const newNoteBtn = document.getElementById("new-note-btn");
 
+const newnoteBackdrop = document.getElementById("newnote-backdrop");
+const newnoteBlank = document.getElementById("newnote-blank");
+const newnoteTemplate = document.getElementById("newnote-template");
+const newnoteClose = document.getElementById("newnote-close");
+
 const backBtn = document.getElementById("back-btn");
+const pinBtn = document.getElementById("pin-btn");
+const moreBtn = document.getElementById("more-btn");
+const moreBackdrop = document.getElementById("more-backdrop");
+const moreClose = document.getElementById("more-close");
+const duplicateBtn = document.getElementById("duplicate-btn");
 const historyBtn = document.getElementById("history-btn");
 const printBtn = document.getElementById("print-btn");
 const deleteBtn = document.getElementById("delete-btn");
 const saveIndicator = document.getElementById("save-indicator");
+const editorMeta = document.getElementById("editor-meta");
 const colorDotsEl = document.getElementById("color-dots");
 const subjectInput = document.getElementById("subject-input");
 const titleInput = document.getElementById("title-input");
@@ -94,11 +106,19 @@ const styleSelect = document.getElementById("style-select");
 const boldBtn = document.getElementById("bold-btn");
 const italicBtn = document.getElementById("italic-btn");
 const underlineBtn = document.getElementById("underline-btn");
+const highlightBtn = document.getElementById("highlight-btn");
+const fineUnderlineBtn = document.getElementById("fine-underline-btn");
 const listBtn = document.getElementById("list-btn");
 const numberedListBtn = document.getElementById("numbered-list-btn");
+const checklistBtn = document.getElementById("checklist-btn");
 const alignLeftBtn = document.getElementById("align-left-btn");
 const alignCenterBtn = document.getElementById("align-center-btn");
 const alignRightBtn = document.getElementById("align-right-btn");
+
+const themeSelect = document.getElementById("theme-select");
+const fontsizeSelect = document.getElementById("fontsize-select");
+const densitySelect = document.getElementById("density-select");
+const widthSelect = document.getElementById("width-select");
 
 const versionBackdrop = document.getElementById("version-backdrop");
 const versionList = document.getElementById("version-list");
@@ -113,7 +133,9 @@ const toastEl = document.getElementById("toast");
 let currentUser = null;
 let notesCache = [];
 let unsubscribeNotes = null;
+let unsubscribeUserDoc = null;
 let activeSubjectFilter = "";
+let currentSort = "recenti";
 let authMode = "login"; // or "register"
 
 let currentNoteId = null;
@@ -192,16 +214,63 @@ function friendlyAuthError(code) {
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
   if (unsubscribeNotes) { unsubscribeNotes(); unsubscribeNotes = null; }
+  if (unsubscribeUserDoc) { unsubscribeUserDoc(); unsubscribeUserDoc = null; }
 
   if (user) {
     authForm.reset();
     showView("list");
     subscribeNotes(user.uid);
+    unsubscribeUserDoc = onSnapshot(doc(db, "users", user.uid), (snap) => {
+      const prefs = (snap.exists() && snap.data().prefs) || {};
+      applyPrefs(prefs);
+    });
   } else {
     notesCache = [];
     showView("auth");
   }
 });
+
+// ---------------------------------------------------------------------------
+// Aspetto — temi e preferenze di visualizzazione
+// ---------------------------------------------------------------------------
+
+function applyPrefs(prefs) {
+  const theme = prefs.theme || "quaderno";
+  const fontSize = prefs.fontSize || "m";
+  const density = prefs.density || "normale";
+  const width = prefs.width || "normale";
+
+  document.documentElement.setAttribute("data-theme", theme);
+  document.documentElement.setAttribute("data-fontsize", fontSize);
+  document.documentElement.setAttribute("data-density", density);
+  document.documentElement.setAttribute("data-width", width);
+
+  themeSelect.value = theme;
+  fontsizeSelect.value = fontSize;
+  densitySelect.value = density;
+  widthSelect.value = width;
+}
+
+async function savePrefs() {
+  if (!currentUser) return;
+  const prefs = {
+    theme: themeSelect.value,
+    fontSize: fontsizeSelect.value,
+    density: densitySelect.value,
+    width: widthSelect.value
+  };
+  applyPrefs(prefs);
+  try {
+    await setDoc(doc(db, "users", currentUser.uid), { prefs }, { merge: true });
+  } catch (err) {
+    console.error("Impossibile salvare le preferenze di aspetto", err);
+  }
+}
+
+themeSelect.addEventListener("change", savePrefs);
+fontsizeSelect.addEventListener("change", savePrefs);
+densitySelect.addEventListener("change", savePrefs);
+widthSelect.addEventListener("change", savePrefs);
 
 accountBtn.addEventListener("click", () => {
   openAccountView();
@@ -255,15 +324,34 @@ function makeChip(label, value) {
 }
 
 searchInput.addEventListener("input", renderList);
+sortSelect.addEventListener("change", () => {
+  currentSort = sortSelect.value;
+  renderList();
+});
 
 function renderList() {
   const term = searchInput.value.trim().toLowerCase();
 
-  const filtered = notesCache.filter(n => {
+  let filtered = notesCache.filter(n => {
     if (activeSubjectFilter && (n.subject || "") !== activeSubjectFilter) return false;
     if (!term) return true;
     return (n.title || "").toLowerCase().includes(term) ||
-           (n.subject || "").toLowerCase().includes(term);
+           (n.subject || "").toLowerCase().includes(term) ||
+           htmlToPlainText(n.bodyHTML || "").toLowerCase().includes(term);
+  });
+
+  filtered.sort((a, b) => {
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+    if (currentSort === "alfabetico") {
+      return (a.title || "").localeCompare(b.title || "", "it");
+    }
+    if (currentSort === "materia") {
+      const s = (a.subject || "").localeCompare(b.subject || "", "it");
+      if (s !== 0) return s;
+      return (a.title || "").localeCompare(b.title || "", "it");
+    }
+    // recenti — l'ordine arriva già da Firestore (updatedAt desc); qui manteniamo lo stesso ordine relativo
+    return 0;
   });
 
   cardsGrid.innerHTML = "";
@@ -278,6 +366,7 @@ function renderList() {
     const dateLabel = formatDate(note.updatedAt);
 
     card.innerHTML = `
+      ${note.pinned ? `<svg class="card-pin" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 17v5M5 15.24V15a2 2 0 0 1 .89-1.66L8 12V5a1 1 0 0 1-1-1V3h10v1a1 1 0 0 1-1 1v7l2.11 1.34A2 2 0 0 1 19 15v.24Z"/></svg>` : ""}
       ${note.subject ? `<div class="card-subject">${escapeHTML(note.subject)}</div>` : ""}
       <div class="card-title">${escapeHTML(note.title || "Senza titolo")}</div>
       ${excerpt ? `<div class="card-excerpt">${escapeHTML(excerpt)}</div>` : ""}
@@ -311,12 +400,30 @@ function escapeHTML(str) {
 // New note
 // ---------------------------------------------------------------------------
 
-newNoteBtn.addEventListener("click", async () => {
+const LESSON_TEMPLATE_HTML =
+  "<h2>Argomenti trattati</h2><p><br></p><h2>Domande</h2><p><br></p><h2>Da approfondire</h2><p><br></p>";
+
+newNoteBtn.addEventListener("click", () => newnoteBackdrop.classList.add("active"));
+newnoteClose.addEventListener("click", () => newnoteBackdrop.classList.remove("active"));
+newnoteBackdrop.addEventListener("click", (e) => {
+  if (e.target === newnoteBackdrop) newnoteBackdrop.classList.remove("active");
+});
+newnoteBlank.addEventListener("click", () => {
+  newnoteBackdrop.classList.remove("active");
+  createNote("");
+});
+newnoteTemplate.addEventListener("click", () => {
+  newnoteBackdrop.classList.remove("active");
+  createNote(LESSON_TEMPLATE_HTML);
+});
+
+async function createNote(initialBodyHTML) {
   const defaults = {
     title: "",
     subject: "",
-    bodyHTML: "",
+    bodyHTML: initialBodyHTML || "",
     color: PALETTE[Math.floor(Math.random() * PALETTE.length)].key,
+    pinned: false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     versions: []
@@ -327,7 +434,7 @@ newNoteBtn.addEventListener("click", async () => {
   loadIntoEditor({ id: ref.id, ...defaults, updatedAt: null, createdAt: null });
   showView("editor");
   setTimeout(() => titleInput.focus(), 50);
-});
+}
 
 // ---------------------------------------------------------------------------
 // Editor: open / close
@@ -350,11 +457,52 @@ function loadIntoEditor(note) {
   renderColorDots(note.color || "mustard");
   saveIndicator.textContent = "";
   styleSelect.value = "p";
+  pinBtn.classList.toggle("pinned", !!note.pinned);
+  updateWordCount();
 }
 
 backBtn.addEventListener("click", () => {
   flushSave();
   showView("list");
+});
+
+pinBtn.addEventListener("click", async () => {
+  if (!currentNoteId || !currentUser) return;
+  const newPinned = !pinBtn.classList.contains("pinned");
+  pinBtn.classList.toggle("pinned", newPinned);
+  currentNoteSnapshot = { ...currentNoteSnapshot, pinned: newPinned };
+  try {
+    await setDoc(doc(db, "users", currentUser.uid, "notes", currentNoteId), { pinned: newPinned }, { merge: true });
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+moreBtn.addEventListener("click", () => moreBackdrop.classList.add("active"));
+moreClose.addEventListener("click", () => moreBackdrop.classList.remove("active"));
+moreBackdrop.addEventListener("click", (e) => {
+  if (e.target === moreBackdrop) moreBackdrop.classList.remove("active");
+});
+
+duplicateBtn.addEventListener("click", async () => {
+  if (!currentNoteId || !currentUser) return;
+  moreBackdrop.classList.remove("active");
+  flushSave();
+  const defaults = {
+    title: titleInput.value ? `${titleInput.value} (copia)` : "",
+    subject: subjectInput.value,
+    bodyHTML: bodyEditor.innerHTML,
+    color: currentSelectedColor(),
+    pinned: false,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+    versions: []
+  };
+  const ref = await addDoc(notesCol(), defaults);
+  currentNoteSnapshot = { ...defaults, updatedAt: new Date(), createdAt: new Date() };
+  currentNoteId = ref.id;
+  loadIntoEditor({ id: ref.id, ...defaults, updatedAt: null, createdAt: null });
+  toast("Appunto duplicato");
 });
 
 function renderColorDots(activeKey) {
@@ -376,6 +524,19 @@ function renderColorDots(activeKey) {
 function currentSelectedColor() {
   const active = colorDotsEl.querySelector(".color-dot.active");
   return active ? active.dataset.color : "mustard";
+}
+
+// ---------------------------------------------------------------------------
+// Conteggio parole
+// ---------------------------------------------------------------------------
+
+function updateWordCount() {
+  const text = (bodyEditor.textContent || "").trim();
+  const words = text ? text.split(/\s+/).length : 0;
+  const minutes = Math.max(1, Math.round(words / 200));
+  editorMeta.textContent = words
+    ? `${words} parol${words === 1 ? "a" : "e"} · ${minutes} min di lettura`
+    : "";
 }
 
 // ---------------------------------------------------------------------------
@@ -409,6 +570,14 @@ function getCurrentBlock() {
   return node;
 }
 
+function getCurrentLi() {
+  const sel = window.getSelection();
+  if (!sel || !sel.anchorNode) return null;
+  const el = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+  const li = el && el.closest ? el.closest("li") : null;
+  return li && bodyEditor.contains(li) ? li : null;
+}
+
 function applyInlineFormatting(text) {
   let out = escapeHTML(text);
   out = out.replace(/\*\*([^\*]+)\*\*/g, "<strong>$1</strong>");
@@ -419,6 +588,7 @@ function applyInlineFormatting(text) {
 function finalizeBlock(el) {
   if (!el || !el.isConnected || !bodyEditor.contains(el)) return;
   if (el.tagName === "LI") {
+    if (el.closest("ul.checklist")) return; // non toccare il segno di spunta
     const raw = el.textContent;
     el.innerHTML = applyInlineFormatting(raw);
     return;
@@ -438,7 +608,7 @@ function finalizeBlock(el) {
     li.innerHTML = applyInlineFormatting(content);
 
     const prev = el.previousElementSibling;
-    if (prev && prev.tagName === "UL") {
+    if (prev && prev.tagName === "UL" && !prev.classList.contains("checklist")) {
       prev.appendChild(li);
       el.remove();
     } else {
@@ -452,33 +622,78 @@ function finalizeBlock(el) {
   el.innerHTML = applyInlineFormatting(raw);
 }
 
+function insertChecklistCheckbox(li) {
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.setAttribute("contenteditable", "false");
+  li.insertBefore(cb, li.firstChild);
+  li.insertBefore(document.createTextNode(" "), cb.nextSibling);
+}
+
 bodyEditor.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    const block = getCurrentBlock();
-    if (block && block.tagName !== "LI") {
-      setTimeout(() => finalizeBlock(block), 0);
-    } else if (block && block.tagName === "LI" && block.textContent.trim() === "") {
-      // breaking out of an empty list item — let browser handle, then normalize
-      setTimeout(() => {
-        const nb = getCurrentBlock();
-        if (nb && nb.tagName !== "LI") finalizeBlock(nb);
-      }, 0);
-    }
+  const isCmd = e.metaKey || e.ctrlKey;
+
+  if (isCmd && ["1", "2", "3"].includes(e.key)) {
+    e.preventDefault();
+    const map = { "1": "p", "2": "h1", "3": "h2" };
+    document.execCommand("formatBlock", false, map[e.key]);
+    styleSelect.value = map[e.key];
+    scheduleSave();
+    return;
   }
+
   if (e.key === "Tab") {
     // rientro/uscita di livello nelle liste, come in Word/Pages
     e.preventDefault();
     document.execCommand(e.shiftKey ? "outdent" : "indent");
+    return;
+  }
+
+  if (e.key === "Enter" && !e.shiftKey) {
+    const li = getCurrentLi();
+
+    if (li) {
+      if (li.closest("ul.checklist")) {
+        setTimeout(() => {
+          const nb = getCurrentLi();
+          if (nb && !nb.querySelector('input[type="checkbox"]')) insertChecklistCheckbox(nb);
+        }, 0);
+      } else if (li.textContent.trim() === "") {
+        // uscita da un elemento vuoto — il browser lo porta fuori dalla lista; normalizziamo il blocco risultante
+        setTimeout(() => {
+          const nb = getCurrentBlock();
+          if (nb && nb.tagName !== "LI" && nb.tagName !== "UL" && nb.tagName !== "OL") finalizeBlock(nb);
+        }, 0);
+      } else {
+        setTimeout(() => {
+          const nb = getCurrentLi();
+          if (nb) finalizeBlock(nb);
+        }, 0);
+      }
+      return;
+    }
+
+    const block = getCurrentBlock();
+    if (block) setTimeout(() => finalizeBlock(block), 0);
   }
 });
 
 bodyEditor.addEventListener("input", () => {
-  lastActiveBlock = getCurrentBlock();
+  lastActiveBlock = getCurrentLi() || getCurrentBlock();
+  updateWordCount();
   scheduleSave();
 });
 
 bodyEditor.addEventListener("blur", () => {
   if (lastActiveBlock) finalizeBlock(lastActiveBlock);
+});
+
+bodyEditor.addEventListener("change", (e) => {
+  if (e.target && e.target.matches && e.target.matches('input[type="checkbox"]')) {
+    const li = e.target.closest("li");
+    if (li) li.classList.toggle("checked", e.target.checked);
+    scheduleSave();
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -499,6 +714,47 @@ numberedListBtn.addEventListener("click", () => { bodyEditor.focus(); document.e
 alignLeftBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("justifyLeft"); scheduleSave(); });
 alignCenterBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("justifyCenter"); scheduleSave(); });
 alignRightBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("justifyRight"); scheduleSave(); });
+
+checklistBtn.addEventListener("click", () => {
+  bodyEditor.focus();
+  document.execCommand(
+    "insertHTML", false,
+    '<ul class="checklist"><li><input type="checkbox" contenteditable="false"> </li></ul><p><br></p>'
+  );
+  scheduleSave();
+});
+
+function toggleInlineWrap(tag, className) {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount || sel.isCollapsed) return;
+  const range = sel.getRangeAt(0);
+  if (!bodyEditor.contains(range.commonAncestorContainer)) return;
+
+  let container = range.commonAncestorContainer;
+  if (container.nodeType === 3) container = container.parentElement;
+  const existing = container && container.closest ? container.closest("." + className) : null;
+
+  if (existing && bodyEditor.contains(existing)) {
+    const parent = existing.parentNode;
+    while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+    parent.removeChild(existing);
+  } else {
+    const wrapper = document.createElement(tag);
+    wrapper.className = className;
+    try {
+      range.surroundContents(wrapper);
+    } catch (err) {
+      const contents = range.extractContents();
+      wrapper.appendChild(contents);
+      range.insertNode(wrapper);
+    }
+  }
+  sel.removeAllRanges();
+  scheduleSave();
+}
+
+highlightBtn.addEventListener("click", () => { bodyEditor.focus(); toggleInlineWrap("mark", "hl"); });
+fineUnderlineBtn.addEventListener("click", () => { bodyEditor.focus(); toggleInlineWrap("span", "fine-underline"); });
 
 function updateToolbarState() {
   const toggle = (btn, cmd) => {
@@ -547,6 +803,7 @@ async function saveNote() {
     subject: subjectInput.value,
     bodyHTML: bodyEditor.innerHTML,
     color: currentSelectedColor(),
+    pinned: pinBtn.classList.contains("pinned"),
     updatedAt: serverTimestamp()
   };
 
@@ -587,6 +844,7 @@ async function saveNote() {
 // ---------------------------------------------------------------------------
 
 historyBtn.addEventListener("click", () => {
+  moreBackdrop.classList.remove("active");
   const versions = (currentNoteSnapshot && currentNoteSnapshot.versions) || [];
   versionList.innerHTML = "";
 
@@ -636,6 +894,7 @@ versionBackdrop.addEventListener("click", (e) => {
 
 deleteBtn.addEventListener("click", async () => {
   if (!currentNoteId) return;
+  moreBackdrop.classList.remove("active");
   const ok = window.confirm("Eliminare definitivamente questo appunto?");
   if (!ok) return;
   clearTimeout(saveTimer);
@@ -650,6 +909,7 @@ deleteBtn.addEventListener("click", async () => {
 // ---------------------------------------------------------------------------
 
 printBtn.addEventListener("click", () => {
+  moreBackdrop.classList.remove("active");
   flushSave();
 
   const subject = subjectInput.value || "";
@@ -792,7 +1052,9 @@ deleteAccountBtn.addEventListener("click", async () => {
 // ---------------------------------------------------------------------------
 
 document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && versionBackdrop.classList.contains("active")) {
+  if (e.key === "Escape") {
     versionBackdrop.classList.remove("active");
+    moreBackdrop.classList.remove("active");
+    newnoteBackdrop.classList.remove("active");
   }
 });
