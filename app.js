@@ -53,7 +53,9 @@ const views = {
   editor: document.getElementById("editor-view"),
   account: document.getElementById("account-view"),
   materie: document.getElementById("materie-view"),
-  timetable: document.getElementById("timetable-view")
+  timetable: document.getElementById("timetable-view"),
+  materiaDetail: document.getElementById("materia-detail-view"),
+  archive: document.getElementById("archive-view")
 };
 
 const authForm = document.getElementById("auth-form");
@@ -156,6 +158,22 @@ const slotSaveBtn = document.getElementById("slot-save-btn");
 const slotDeleteBtn = document.getElementById("slot-delete-btn");
 const slotFormClose = document.getElementById("slot-form-close");
 
+const materiaDetailBackBtn = document.getElementById("materia-detail-back-btn");
+const materiaDetailEditBtn = document.getElementById("materia-detail-edit-btn");
+const materiaDetailTitle = document.getElementById("materia-detail-title");
+const materiaDetailGrid = document.getElementById("materia-detail-grid");
+const materiaDetailEmpty = document.getElementById("materia-detail-empty");
+
+const archiveNavBtn = document.getElementById("archive-nav-btn");
+const archiveBackBtn = document.getElementById("archive-back-btn");
+const archiveGrid = document.getElementById("archive-grid");
+const archiveEmpty = document.getElementById("archive-empty");
+
+const addColumnBtn = document.getElementById("add-column-btn");
+const deleteColumnBtn = document.getElementById("delete-column-btn");
+const archiveBtn = document.getElementById("archive-btn");
+const archiveBtnLabel = document.getElementById("archive-btn-label");
+
 const versionBackdrop = document.getElementById("version-backdrop");
 const versionList = document.getElementById("version-list");
 const versionClose = document.getElementById("version-close");
@@ -178,6 +196,8 @@ let activeSubjectFilter = "";
 let currentSort = "recenti";
 let authMode = "login"; // or "register"
 let editingMateriaId = null;
+let currentMateriaDetailName = null;
+let editorReturnView = "list";
 let editingSlotId = null;
 let activeDayTab = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1; })();
 
@@ -336,6 +356,46 @@ timetableBtn.addEventListener("click", () => {
 });
 timetableBackBtn.addEventListener("click", () => showView("list"));
 
+archiveNavBtn.addEventListener("click", () => {
+  renderArchiveGrid();
+  showView("archive");
+});
+archiveBackBtn.addEventListener("click", () => showView("list"));
+
+materiaDetailBackBtn.addEventListener("click", () => showView("materie"));
+materiaDetailEditBtn.addEventListener("click", () => {
+  const materia = subjectsCache.find(s => s.name === currentMateriaDetailName);
+  if (materia) openMateriaForm(materia);
+});
+
+function openMateriaDetail(materiaName) {
+  currentMateriaDetailName = materiaName;
+  const materia = subjectsCache.find(s => s.name === materiaName);
+  materiaDetailTitle.textContent = materiaName;
+  materiaDetailTitle.style.borderLeft = materia ? `3px solid ${colorHex(materia.color)}` : "";
+  materiaDetailTitle.style.paddingLeft = materia ? "8px" : "";
+  renderMateriaDetailGrid();
+  showView("materiaDetail");
+}
+
+function renderMateriaDetailGrid() {
+  const notes = notesCache
+    .filter(n => !n.archived && n.subject === currentMateriaDetailName)
+    .sort((a, b) => tsToMillis(b.updatedAt) - tsToMillis(a.updatedAt));
+  materiaDetailGrid.innerHTML = "";
+  materiaDetailEmpty.style.display = notes.length ? "none" : "block";
+  notes.forEach(note => materiaDetailGrid.appendChild(buildNoteCard(note, "materiaDetail")));
+}
+
+function renderArchiveGrid() {
+  const notes = notesCache
+    .filter(n => n.archived)
+    .sort((a, b) => tsToMillis(b.updatedAt) - tsToMillis(a.updatedAt));
+  archiveGrid.innerHTML = "";
+  archiveEmpty.style.display = notes.length ? "none" : "block";
+  notes.forEach(note => archiveGrid.appendChild(buildNoteCard(note, "archive")));
+}
+
 // ---------------------------------------------------------------------------
 // Notes: realtime list
 // ---------------------------------------------------------------------------
@@ -417,10 +477,33 @@ sortSelect.addEventListener("change", () => {
   renderList();
 });
 
+function buildNoteCard(note, returnView) {
+  const card = document.createElement("button");
+  card.className = "note-card";
+  card.style.background = colorHex(note.color);
+
+  const excerpt = htmlToPlainText(note.bodyHTML || "").slice(0, 160);
+  const dateLabel = formatDate(note.updatedAt);
+
+  card.innerHTML = `
+    ${note.pinned ? `<svg class="card-pin" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 17v5M5 15.24V15a2 2 0 0 1 .89-1.66L8 12V5a1 1 0 0 1-1-1V3h10v1a1 1 0 0 1-1 1v7l2.11 1.34A2 2 0 0 1 19 15v.24Z"/></svg>` : ""}
+    ${note.subject ? `<div class="card-subject">${escapeHTML(note.subject)}</div>` : ""}
+    <div class="card-title">${escapeHTML(note.title || "Senza titolo")}</div>
+    ${excerpt ? `<div class="card-excerpt">${escapeHTML(excerpt)}</div>` : ""}
+    <div class="card-date">${dateLabel}</div>
+  `;
+  card.addEventListener("click", () => {
+    editorReturnView = returnView || "list";
+    openEditor(note.id);
+  });
+  return card;
+}
+
 function renderList() {
   const term = searchInput.value.trim().toLowerCase();
 
   let filtered = notesCache.filter(n => {
+    if (n.archived) return false;
     if (activeSubjectFilter && (n.subject || "") !== activeSubjectFilter) return false;
     if (!term) return true;
     return (n.title || "").toLowerCase().includes(term) ||
@@ -444,25 +527,7 @@ function renderList() {
 
   cardsGrid.innerHTML = "";
   emptyState.style.display = filtered.length ? "none" : "block";
-
-  filtered.forEach(note => {
-    const card = document.createElement("button");
-    card.className = "note-card";
-    card.style.background = colorHex(note.color);
-
-    const excerpt = htmlToPlainText(note.bodyHTML || "").slice(0, 160);
-    const dateLabel = formatDate(note.updatedAt);
-
-    card.innerHTML = `
-      ${note.pinned ? `<svg class="card-pin" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M12 17v5M5 15.24V15a2 2 0 0 1 .89-1.66L8 12V5a1 1 0 0 1-1-1V3h10v1a1 1 0 0 1-1 1v7l2.11 1.34A2 2 0 0 1 19 15v.24Z"/></svg>` : ""}
-      ${note.subject ? `<div class="card-subject">${escapeHTML(note.subject)}</div>` : ""}
-      <div class="card-title">${escapeHTML(note.title || "Senza titolo")}</div>
-      ${excerpt ? `<div class="card-excerpt">${escapeHTML(excerpt)}</div>` : ""}
-      <div class="card-date">${dateLabel}</div>
-    `;
-    card.addEventListener("click", () => openEditor(note.id));
-    cardsGrid.appendChild(card);
-  });
+  filtered.forEach(note => cardsGrid.appendChild(buildNoteCard(note)));
 }
 
 function formatDate(ts) {
@@ -556,12 +621,17 @@ function loadIntoEditor(note) {
   pinBtn.classList.toggle("pinned", !!note.pinned);
   bodyEditor.classList.toggle("two-col", !!note.columns);
   columnsBtn.classList.toggle("active", !!note.columns);
+  archiveBtn.dataset.archived = note.archived ? "true" : "false";
+  archiveBtnLabel.textContent = note.archived ? "Rimuovi dall'archivio" : "Archivia appunto";
   updateWordCount();
 }
 
 backBtn.addEventListener("click", () => {
   flushSave();
-  showView("list");
+  if (editorReturnView === "materiaDetail") renderMateriaDetailGrid();
+  if (editorReturnView === "archive") renderArchiveGrid();
+  showView(editorReturnView || "list");
+  editorReturnView = "list";
 });
 
 pinBtn.addEventListener("click", async () => {
@@ -601,6 +671,21 @@ duplicateBtn.addEventListener("click", async () => {
   currentNoteId = ref.id;
   loadIntoEditor({ id: ref.id, ...defaults, updatedAt: null, createdAt: null });
   toast("Appunto duplicato");
+});
+
+archiveBtn.addEventListener("click", async () => {
+  if (!currentNoteId || !currentUser) return;
+  moreBackdrop.classList.remove("active");
+  const newArchived = archiveBtn.dataset.archived !== "true";
+  archiveBtn.dataset.archived = newArchived ? "true" : "false";
+  archiveBtnLabel.textContent = newArchived ? "Rimuovi dall'archivio" : "Archivia appunto";
+  currentNoteSnapshot = { ...currentNoteSnapshot, archived: newArchived };
+  try {
+    await setDoc(doc(db, "users", currentUser.uid, "notes", currentNoteId), { archived: newArchived }, { merge: true });
+    toast(newArchived ? "Appunto archiviato" : "Appunto ripristinato");
+  } catch (err) {
+    console.error(err);
+  }
 });
 
 function renderColorDots(activeKey) {
@@ -667,7 +752,17 @@ subjectInput.addEventListener("change", () => { updateSubjectBanner(); scheduleS
 // Body editor — automatic formatting
 // ---------------------------------------------------------------------------
 
-document.execCommand && document.execCommand("defaultParagraphSeparator", false, "p");
+// Questa chiamata era senza protezione: se il browser la rifiuta (successo non
+// garantito su tutte le versioni di Safari), interrompe l'esecuzione dell'intero
+// script da questo punto in poi — cioè tutto ciò che viene cablato più sotto
+// (tabelle, evidenziatore, colonne, materie, orario, archivio, stampa...) non
+// verrebbe mai collegato ai pulsanti. Non è indispensabile al funzionamento
+// dell'editor, quindi la rendiamo innocua in ogni caso.
+try {
+  document.execCommand && document.execCommand("defaultParagraphSeparator", false, "p");
+} catch (err) {
+  console.warn("defaultParagraphSeparator non supportato, continuo comunque:", err);
+}
 
 function getCurrentBlock() {
   const sel = window.getSelection();
@@ -1019,6 +1114,41 @@ deleteTableBtn.addEventListener("click", () => {
   }
 });
 
+addColumnBtn.addEventListener("click", () => {
+  moreBackdrop.classList.remove("active");
+  const cell = getCurrentCell();
+  const table = cell && cell.closest("table");
+  if (!table) { toast("Metti il cursore dentro la tabella"); return; }
+  const colIndex = [...cell.parentElement.children].indexOf(cell);
+  [...table.rows].forEach(row => {
+    const td = document.createElement("td");
+    td.innerHTML = "<br>";
+    const refCell = row.children[colIndex];
+    if (refCell && refCell.nextElementSibling) {
+      row.insertBefore(td, refCell.nextElementSibling);
+    } else {
+      row.appendChild(td);
+    }
+  });
+  scheduleSave();
+});
+
+deleteColumnBtn.addEventListener("click", () => {
+  moreBackdrop.classList.remove("active");
+  const cell = getCurrentCell();
+  const table = cell && cell.closest("table");
+  if (!table) { toast("Metti il cursore dentro la colonna da eliminare"); return; }
+  const colIndex = [...cell.parentElement.children].indexOf(cell);
+  if (cell.parentElement.children.length <= 1) {
+    table.remove(); // era l'unica colonna: la tabella non ha più senso
+  } else {
+    [...table.rows].forEach(row => {
+      if (row.children[colIndex]) row.children[colIndex].remove();
+    });
+  }
+  scheduleSave();
+});
+
 // ---------------------------------------------------------------------------
 // Colonne
 // ---------------------------------------------------------------------------
@@ -1066,14 +1196,27 @@ bodyEditor.addEventListener("click", (e) => {
   if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
 });
 
+function selectionHasAncestor(selector) {
+  const sel = window.getSelection();
+  if (!sel || !sel.anchorNode) return false;
+  const el = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+  if (!el || !bodyEditor.contains(el)) return false;
+  return !!el.closest(selector);
+}
+
 function updateToolbarState() {
   const toggle = (btn, cmd) => {
     try { btn.classList.toggle("active", document.queryCommandState(cmd)); }
     catch (e) { /* ignore */ }
   };
-  toggle(boldBtn, "bold");
-  toggle(italicBtn, "italic");
-  toggle(underlineBtn, "underline");
+  // grassetto/corsivo/sottolineato/evidenziatore: controlliamo direttamente il DOM,
+  // più affidabile di queryCommandState su alcuni browser (es. Safari)
+  boldBtn.classList.toggle("active", selectionHasAncestor("b,strong"));
+  italicBtn.classList.toggle("active", selectionHasAncestor("i,em"));
+  underlineBtn.classList.toggle("active", selectionHasAncestor("u"));
+  highlightBtn.classList.toggle("active", selectionHasAncestor(".hl"));
+  fineUnderlineBtn.classList.toggle("active", selectionHasAncestor(".fine-underline"));
+
   toggle(listBtn, "insertUnorderedList");
   toggle(numberedListBtn, "insertOrderedList");
   toggle(alignLeftBtn, "justifyLeft");
@@ -1115,6 +1258,7 @@ async function saveNote() {
     color: currentSelectedColor(),
     pinned: pinBtn.classList.contains("pinned"),
     columns: bodyEditor.classList.contains("two-col"),
+    archived: archiveBtn.dataset.archived === "true",
     updatedAt: serverTimestamp()
   };
 
@@ -1410,15 +1554,28 @@ function renderMaterieList() {
   materieEmpty.style.display = subjectsCache.length ? "none" : "block";
 
   subjectsCache.forEach(s => {
-    const count = notesCache.filter(n => n.subject === s.name).length;
-    const row = document.createElement("button");
+    const count = notesCache.filter(n => !n.archived && n.subject === s.name).length;
+
+    const row = document.createElement("div");
     row.className = "materia-row";
-    row.innerHTML = `
+
+    const openBtn = document.createElement("button");
+    openBtn.className = "materia-open";
+    openBtn.innerHTML = `
       <span class="materia-color" style="background:${colorHex(s.color)}"></span>
       <span class="materia-name">${escapeHTML(s.name)}</span>
       <span class="materia-count">${count} appunt${count === 1 ? "o" : "i"}</span>
     `;
-    row.addEventListener("click", () => openMateriaForm(s));
+    openBtn.addEventListener("click", () => openMateriaDetail(s.name));
+
+    const editBtn = document.createElement("button");
+    editBtn.className = "materia-edit";
+    editBtn.title = "Modifica materia";
+    editBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+    editBtn.addEventListener("click", () => openMateriaForm(s));
+
+    row.appendChild(openBtn);
+    row.appendChild(editBtn);
     materieList.appendChild(row);
   });
 }
