@@ -5,7 +5,8 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
 import {
   getAuth, onAuthStateChanged, signInWithEmailAndPassword,
-  createUserWithEmailAndPassword, signOut
+  createUserWithEmailAndPassword, signOut, updatePassword,
+  reauthenticateWithCredential, EmailAuthProvider, deleteUser
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc,
@@ -49,7 +50,8 @@ function colorHex(key) {
 const views = {
   auth: document.getElementById("auth-view"),
   list: document.getElementById("list-view"),
-  editor: document.getElementById("editor-view")
+  editor: document.getElementById("editor-view"),
+  account: document.getElementById("account-view")
 };
 
 const authForm = document.getElementById("auth-form");
@@ -61,7 +63,17 @@ const authSwitchBtn = document.getElementById("auth-switch-btn");
 const authSwitchText = document.getElementById("auth-switch-text");
 const authTagline = document.getElementById("auth-tagline");
 
-const logoutBtn = document.getElementById("logout-btn");
+const accountBtn = document.getElementById("account-btn");
+const accountBackBtn = document.getElementById("account-back-btn");
+const accountAvatar = document.getElementById("account-avatar");
+const accountEmailEl = document.getElementById("account-email");
+const accountMetaEl = document.getElementById("account-meta");
+const passwordForm = document.getElementById("password-form");
+const currentPasswordInput = document.getElementById("current-password");
+const newPasswordInput = document.getElementById("new-password");
+const pwMsg = document.getElementById("pw-msg");
+const signoutBtn = document.getElementById("signout-btn");
+const deleteAccountBtn = document.getElementById("delete-account-btn");
 const searchInput = document.getElementById("search-input");
 const chipsRow = document.getElementById("chips-row");
 const cardsGrid = document.getElementById("cards-grid");
@@ -87,12 +99,6 @@ const versionList = document.getElementById("version-list");
 const versionClose = document.getElementById("version-close");
 
 const toastEl = document.getElementById("toast");
-
-const printArea = document.getElementById("print-area");
-const printSubject = document.getElementById("print-subject");
-const printTitle = document.getElementById("print-title");
-const printDate = document.getElementById("print-date");
-const printBody = document.getElementById("print-body");
 
 // ---------------------------------------------------------------------------
 // State
@@ -177,7 +183,10 @@ function friendlyAuthError(code) {
   }
 }
 
-logoutBtn.addEventListener("click", () => signOut(auth));
+accountBtn.addEventListener("click", () => {
+  openAccountView();
+});
+accountBackBtn.addEventListener("click", () => showView("list"));
 
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
@@ -595,13 +604,140 @@ deleteBtn.addEventListener("click", async () => {
 
 printBtn.addEventListener("click", () => {
   flushSave();
-  printSubject.textContent = subjectInput.value || "";
-  printTitle.textContent = titleInput.value || "Senza titolo";
-  printDate.textContent = new Date().toLocaleDateString("it-IT", {
+
+  const subject = subjectInput.value || "";
+  const title = titleInput.value || "Senza titolo";
+  const dateStr = new Date().toLocaleDateString("it-IT", {
     day: "numeric", month: "long", year: "numeric"
   });
-  printBody.innerHTML = bodyEditor.innerHTML;
-  window.print();
+  const bodyHTML = bodyEditor.innerHTML;
+
+  const iframe = document.createElement("iframe");
+  iframe.setAttribute("aria-hidden", "true");
+  iframe.style.position = "fixed";
+  iframe.style.right = "0";
+  iframe.style.bottom = "0";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "0";
+  iframe.style.visibility = "hidden";
+  document.body.appendChild(iframe);
+
+  const printDoc = iframe.contentWindow.document;
+  printDoc.open();
+  printDoc.write(`<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHTML(title)}</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  @page { margin: 20mm 18mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Work Sans', sans-serif; color: #1a1a1a; margin: 0; }
+  .p-subject { font-size: 11pt; color: #666; margin-bottom: 4pt; }
+  .p-title { font-family: 'Fraunces', Georgia, serif; font-size: 26pt; font-weight: 500; margin-bottom: 4pt; }
+  .p-date { font-size: 9.5pt; color: #888; margin-bottom: 22pt; }
+  .p-body { font-size: 11.5pt; line-height: 1.55; }
+  .p-body p { margin: 0 0 10pt; text-align: justify; }
+  .p-body .block-heading { font-weight: 600; font-size: 12.5pt; margin: 16pt 0 6pt; }
+  .p-body ul { margin: 0 0 10pt; padding-left: 18pt; }
+  .p-body li { margin-bottom: 3pt; }
+</style>
+</head>
+<body>
+  ${subject ? `<div class="p-subject">${escapeHTML(subject)}</div>` : ""}
+  <div class="p-title">${escapeHTML(title)}</div>
+  <div class="p-date">${dateStr}</div>
+  <div class="p-body">${bodyHTML}</div>
+</body>
+</html>`);
+  printDoc.close();
+
+  const removeIframe = () => { if (iframe.parentNode) iframe.remove(); };
+  iframe.contentWindow.onafterprint = removeIframe;
+  // fallback in case 'afterprint' doesn't fire on this browser
+  setTimeout(removeIframe, 60000);
+
+  // give the fonts and layout a moment to settle before opening the print dialog
+  setTimeout(() => {
+    iframe.contentWindow.focus();
+    iframe.contentWindow.print();
+  }, 350);
+});
+
+// ---------------------------------------------------------------------------
+// Account
+// ---------------------------------------------------------------------------
+
+function openAccountView() {
+  if (!currentUser) return;
+  accountEmailEl.textContent = currentUser.email || "";
+  accountAvatar.textContent = (currentUser.email || "?").charAt(0).toUpperCase();
+
+  const created = currentUser.metadata && currentUser.metadata.creationTime
+    ? new Date(currentUser.metadata.creationTime)
+    : null;
+  const createdLabel = created
+    ? created.toLocaleDateString("it-IT", { day: "numeric", month: "long", year: "numeric" })
+    : "";
+  const count = notesCache.length;
+  accountMetaEl.textContent =
+    (createdLabel ? `Su Margine dal ${createdLabel} · ` : "") +
+    `${count} appunt${count === 1 ? "o" : "i"}`;
+
+  pwMsg.textContent = "";
+  pwMsg.className = "account-msg";
+  passwordForm.reset();
+
+  showView("account");
+}
+
+passwordForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  pwMsg.textContent = "";
+  pwMsg.className = "account-msg";
+
+  const currentPw = currentPasswordInput.value;
+  const newPw = newPasswordInput.value;
+
+  try {
+    const credential = EmailAuthProvider.credential(currentUser.email, currentPw);
+    await reauthenticateWithCredential(currentUser, credential);
+    await updatePassword(currentUser, newPw);
+    pwMsg.textContent = "Password aggiornata.";
+    pwMsg.className = "account-msg success";
+    passwordForm.reset();
+  } catch (err) {
+    pwMsg.textContent = friendlyAuthError(err.code);
+    pwMsg.className = "account-msg error";
+  }
+});
+
+signoutBtn.addEventListener("click", () => signOut(auth));
+
+deleteAccountBtn.addEventListener("click", async () => {
+  const ok = window.confirm(
+    "Eliminare definitivamente il tuo account e tutti i tuoi appunti? L'operazione non si può annullare."
+  );
+  if (!ok) return;
+
+  const pw = window.prompt("Per conferma, inserisci la tua password:");
+  if (!pw) return;
+
+  try {
+    const credential = EmailAuthProvider.credential(currentUser.email, pw);
+    await reauthenticateWithCredential(currentUser, credential);
+
+    await Promise.all(notesCache.map(n =>
+      deleteDoc(doc(db, "users", currentUser.uid, "notes", n.id))
+    ));
+
+    await deleteUser(currentUser);
+    toast("Account eliminato");
+  } catch (err) {
+    window.alert(friendlyAuthError(err.code));
+  }
 });
 
 // ---------------------------------------------------------------------------
