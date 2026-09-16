@@ -10,7 +10,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-auth.js";
 import {
   getFirestore, collection, doc, addDoc, setDoc, deleteDoc,
-  onSnapshot, query, orderBy, serverTimestamp
+  onSnapshot, serverTimestamp
 } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -51,7 +51,9 @@ const views = {
   auth: document.getElementById("auth-view"),
   list: document.getElementById("list-view"),
   editor: document.getElementById("editor-view"),
-  account: document.getElementById("account-view")
+  account: document.getElementById("account-view"),
+  materie: document.getElementById("materie-view"),
+  timetable: document.getElementById("timetable-view")
 };
 
 const authForm = document.getElementById("auth-form");
@@ -114,11 +116,45 @@ const checklistBtn = document.getElementById("checklist-btn");
 const alignLeftBtn = document.getElementById("align-left-btn");
 const alignCenterBtn = document.getElementById("align-center-btn");
 const alignRightBtn = document.getElementById("align-right-btn");
+const tableBtn = document.getElementById("table-btn");
+const columnsBtn = document.getElementById("columns-btn");
+const tocBtn = document.getElementById("toc-btn");
+const deleteTableBtn = document.getElementById("delete-table-btn");
 
 const themeSelect = document.getElementById("theme-select");
 const fontsizeSelect = document.getElementById("fontsize-select");
 const densitySelect = document.getElementById("density-select");
 const widthSelect = document.getElementById("width-select");
+
+const materieBtn = document.getElementById("materie-btn");
+const materieBackBtn = document.getElementById("materie-back-btn");
+const materiaAddBtn = document.getElementById("materia-add-btn");
+const materieList = document.getElementById("materie-list");
+const materieEmpty = document.getElementById("materie-empty");
+const materiaFormBackdrop = document.getElementById("materia-form-backdrop");
+const materiaFormTitle = document.getElementById("materia-form-title");
+const materiaNameInput = document.getElementById("materia-name-input");
+const materiaColorDots = document.getElementById("materia-color-dots");
+const materiaSaveBtn = document.getElementById("materia-save-btn");
+const materiaDeleteBtn = document.getElementById("materia-delete-btn");
+const materiaFormClose = document.getElementById("materia-form-close");
+
+const timetableBtn = document.getElementById("timetable-btn");
+const timetableBackBtn = document.getElementById("timetable-back-btn");
+const slotAddBtn = document.getElementById("slot-add-btn");
+const dayTabs = document.getElementById("day-tabs");
+const slotList = document.getElementById("slot-list");
+const timetableEmpty = document.getElementById("timetable-empty");
+const slotFormBackdrop = document.getElementById("slot-form-backdrop");
+const slotFormTitle = document.getElementById("slot-form-title");
+const slotDaySelect = document.getElementById("slot-day-select");
+const slotStartInput = document.getElementById("slot-start-input");
+const slotEndInput = document.getElementById("slot-end-input");
+const slotSubjectSelect = document.getElementById("slot-subject-select");
+const slotRoomInput = document.getElementById("slot-room-input");
+const slotSaveBtn = document.getElementById("slot-save-btn");
+const slotDeleteBtn = document.getElementById("slot-delete-btn");
+const slotFormClose = document.getElementById("slot-form-close");
 
 const versionBackdrop = document.getElementById("version-backdrop");
 const versionList = document.getElementById("version-list");
@@ -132,11 +168,18 @@ const toastEl = document.getElementById("toast");
 
 let currentUser = null;
 let notesCache = [];
+let subjectsCache = [];
+let timetableCache = [];
 let unsubscribeNotes = null;
 let unsubscribeUserDoc = null;
+let unsubscribeSubjects = null;
+let unsubscribeTimetable = null;
 let activeSubjectFilter = "";
 let currentSort = "recenti";
 let authMode = "login"; // or "register"
+let editingMateriaId = null;
+let editingSlotId = null;
+let activeDayTab = (() => { const d = new Date().getDay(); return d === 0 ? 6 : d - 1; })();
 
 let currentNoteId = null;
 let currentNoteSnapshot = null; // last known-saved state of the open note
@@ -215,17 +258,23 @@ onAuthStateChanged(auth, (user) => {
   currentUser = user;
   if (unsubscribeNotes) { unsubscribeNotes(); unsubscribeNotes = null; }
   if (unsubscribeUserDoc) { unsubscribeUserDoc(); unsubscribeUserDoc = null; }
+  if (unsubscribeSubjects) { unsubscribeSubjects(); unsubscribeSubjects = null; }
+  if (unsubscribeTimetable) { unsubscribeTimetable(); unsubscribeTimetable = null; }
 
   if (user) {
     authForm.reset();
     showView("list");
     subscribeNotes(user.uid);
+    subscribeSubjects(user.uid);
+    subscribeTimetable(user.uid);
     unsubscribeUserDoc = onSnapshot(doc(db, "users", user.uid), (snap) => {
       const prefs = (snap.exists() && snap.data().prefs) || {};
       applyPrefs(prefs);
     });
   } else {
     notesCache = [];
+    subjectsCache = [];
+    timetableCache = [];
     showView("auth");
   }
 });
@@ -238,7 +287,7 @@ function applyPrefs(prefs) {
   const theme = prefs.theme || "quaderno";
   const fontSize = prefs.fontSize || "m";
   const density = prefs.density || "normale";
-  const width = prefs.width || "normale";
+  const width = prefs.width || "a4";
 
   document.documentElement.setAttribute("data-theme", theme);
   document.documentElement.setAttribute("data-fontsize", fontSize);
@@ -277,6 +326,16 @@ accountBtn.addEventListener("click", () => {
 });
 accountBackBtn.addEventListener("click", () => showView("list"));
 
+materieBtn.addEventListener("click", () => showView("materie"));
+materieBackBtn.addEventListener("click", () => showView("list"));
+
+timetableBtn.addEventListener("click", () => {
+  renderDayTabs();
+  renderSlotList();
+  showView("timetable");
+});
+timetableBackBtn.addEventListener("click", () => showView("list"));
+
 // ---------------------------------------------------------------------------
 // Notes: realtime list
 // ---------------------------------------------------------------------------
@@ -286,35 +345,64 @@ function notesCol() {
 }
 
 function subscribeNotes(uid) {
-  const q = query(collection(db, "users", uid, "notes"), orderBy("updatedAt", "desc"));
-  unsubscribeNotes = onSnapshot(q, (snap) => {
+  // niente orderBy lato server: un documento senza il campo updatedAt verrebbe
+  // escluso in silenzio da Firestore. Ordiniamo lato client in renderList().
+  unsubscribeNotes = onSnapshot(collection(db, "users", uid, "notes"), (snap) => {
     notesCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderChips();
     renderList();
+    renderMaterieList();
   });
 }
 
-function renderChips() {
-  const subjects = [...new Set(
-    notesCache.map(n => (n.subject || "").trim()).filter(Boolean)
-  )].sort((a, b) => a.localeCompare(b, "it"));
+function subscribeSubjects(uid) {
+  unsubscribeSubjects = onSnapshot(collection(db, "users", uid, "subjects"), (snap) => {
+    subjectsCache = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "", "it"));
+    renderChips();
+    renderMaterieList();
+    refreshSubjectSelects();
+    renderSlotList();
+  });
+}
 
+function subscribeTimetable(uid) {
+  unsubscribeTimetable = onSnapshot(collection(db, "users", uid, "timetable"), (snap) => {
+    timetableCache = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderSlotList();
+  });
+}
+
+function tsToMillis(ts) {
+  if (!ts) return Date.now(); // scrittura ancora in transito: la trattiamo come "adesso"
+  if (typeof ts.toMillis === "function") return ts.toMillis();
+  if (ts.seconds) return ts.seconds * 1000;
+  if (ts instanceof Date) return ts.getTime();
+  return Date.now();
+}
+
+function renderChips() {
   const current = activeSubjectFilter;
   chipsRow.innerHTML = "";
-  chipsRow.appendChild(makeChip("Tutti", ""));
-  subjects.forEach(s => chipsRow.appendChild(makeChip(s, s)));
+  chipsRow.appendChild(makeChip("Tutti", "", null));
+  subjectsCache.forEach(s => chipsRow.appendChild(makeChip(s.name, s.name, s.color)));
 
-  if (!subjects.includes(current)) activeSubjectFilter = "";
+  const stillExists = subjectsCache.some(s => s.name === current);
+  if (current && !stillExists) activeSubjectFilter = "";
   [...chipsRow.children].forEach(c => {
     c.classList.toggle("active", c.dataset.subject === activeSubjectFilter);
   });
 }
 
-function makeChip(label, value) {
+function makeChip(label, value, color) {
   const btn = document.createElement("button");
   btn.className = "chip";
-  btn.textContent = label;
   btn.dataset.subject = value;
+  if (color) {
+    btn.innerHTML = `<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${colorHex(color)};margin-right:6px;vertical-align:middle;"></span>${escapeHTML(label)}`;
+  } else {
+    btn.textContent = label;
+  }
   btn.addEventListener("click", () => {
     activeSubjectFilter = value;
     [...chipsRow.children].forEach(c => c.classList.toggle("active", c === btn));
@@ -350,8 +438,8 @@ function renderList() {
       if (s !== 0) return s;
       return (a.title || "").localeCompare(b.title || "", "it");
     }
-    // recenti — l'ordine arriva già da Firestore (updatedAt desc); qui manteniamo lo stesso ordine relativo
-    return 0;
+    // recenti — ordiniamo lato client per updatedAt (più recente prima)
+    return tsToMillis(b.updatedAt) - tsToMillis(a.updatedAt);
   });
 
   cardsGrid.innerHTML = "";
@@ -450,7 +538,15 @@ function openEditor(noteId) {
 }
 
 function loadIntoEditor(note) {
-  subjectInput.value = note.subject || "";
+  const subj = note.subject || "";
+  if (subj && ![...subjectInput.options].some(o => o.value === subj)) {
+    const opt = document.createElement("option");
+    opt.value = subj;
+    opt.textContent = subj;
+    subjectInput.appendChild(opt);
+  }
+  subjectInput.value = subj;
+  updateSubjectBanner();
   titleInput.value = note.title || "";
   autoResizeTitle();
   bodyEditor.innerHTML = note.bodyHTML || "";
@@ -458,6 +554,8 @@ function loadIntoEditor(note) {
   saveIndicator.textContent = "";
   styleSelect.value = "p";
   pinBtn.classList.toggle("pinned", !!note.pinned);
+  bodyEditor.classList.toggle("two-col", !!note.columns);
+  columnsBtn.classList.toggle("active", !!note.columns);
   updateWordCount();
 }
 
@@ -551,7 +649,19 @@ titleInput.addEventListener("input", () => { autoResizeTitle(); scheduleSave(); 
 titleInput.addEventListener("keydown", (e) => {
   if (e.key === "Enter") { e.preventDefault(); bodyEditor.focus(); }
 });
-subjectInput.addEventListener("input", scheduleSave);
+function updateSubjectBanner() {
+  const name = subjectInput.value;
+  if (!name) {
+    subjectInput.style.background = "";
+    subjectInput.classList.add("subject-empty");
+    return;
+  }
+  subjectInput.classList.remove("subject-empty");
+  const s = subjectsCache.find(s => s.name === name);
+  subjectInput.style.background = colorHex(s ? s.color : "mustard");
+}
+
+subjectInput.addEventListener("change", () => { updateSubjectBanner(); scheduleSave(); });
 
 // ---------------------------------------------------------------------------
 // Body editor — automatic formatting
@@ -587,6 +697,7 @@ function applyInlineFormatting(text) {
 
 function finalizeBlock(el) {
   if (!el || !el.isConnected || !bodyEditor.contains(el)) return;
+  if (el.tagName === "TABLE" || el.classList.contains("toc-block")) return;
   if (el.tagName === "LI") {
     if (el.closest("ul.checklist")) return; // non toccare il segno di spunta
     const raw = el.textContent;
@@ -630,6 +741,65 @@ function insertChecklistCheckbox(li) {
   li.insertBefore(document.createTextNode(" "), cb.nextSibling);
 }
 
+function getCurrentCell() {
+  const sel = window.getSelection();
+  if (!sel || !sel.anchorNode) return null;
+  const el = sel.anchorNode.nodeType === 3 ? sel.anchorNode.parentElement : sel.anchorNode;
+  const cell = el && el.closest ? el.closest("td,th") : null;
+  return cell && bodyEditor.contains(cell) ? cell : null;
+}
+
+function placeCursorIn(el) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(true);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function placeCursorAtEnd(el) {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(false);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function handleTableTab(shiftKey) {
+  const cell = getCurrentCell();
+  if (!cell) return false;
+  const row = cell.parentElement;
+  const cellsInRow = [...row.children];
+  const cellIndex = cellsInRow.indexOf(cell);
+
+  if (!shiftKey) {
+    if (cellIndex < cellsInRow.length - 1) {
+      placeCursorIn(cellsInRow[cellIndex + 1]);
+    } else if (row.nextElementSibling) {
+      placeCursorIn(row.nextElementSibling.children[0]);
+    } else {
+      // ultima cella della tabella: aggiunge una nuova riga, come in Word
+      const newRow = document.createElement("tr");
+      cellsInRow.forEach(() => {
+        const td = document.createElement("td");
+        td.innerHTML = "<br>";
+        newRow.appendChild(td);
+      });
+      row.parentElement.appendChild(newRow);
+      placeCursorIn(newRow.children[0]);
+      scheduleSave();
+    }
+  } else if (cellIndex > 0) {
+    placeCursorIn(cellsInRow[cellIndex - 1]);
+  } else if (row.previousElementSibling) {
+    const prevCells = row.previousElementSibling.children;
+    placeCursorIn(prevCells[prevCells.length - 1]);
+  }
+  return true;
+}
+
 bodyEditor.addEventListener("keydown", (e) => {
   const isCmd = e.metaKey || e.ctrlKey;
 
@@ -643,8 +813,9 @@ bodyEditor.addEventListener("keydown", (e) => {
   }
 
   if (e.key === "Tab") {
-    // rientro/uscita di livello nelle liste, come in Word/Pages
     e.preventDefault();
+    if (handleTableTab(e.shiftKey)) return;
+    // rientro/uscita di livello nelle liste, come in Word/Pages
     document.execCommand(e.shiftKey ? "outdent" : "indent");
     return;
   }
@@ -652,13 +823,29 @@ bodyEditor.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     const li = getCurrentLi();
 
+    if (li && li.closest("ul.checklist")) {
+      e.preventDefault();
+      const ul = li.closest("ul.checklist");
+      if (li.textContent.trim() === "") {
+        // elemento vuoto: esce dalla checklist invece di crearne un altro
+        const p = document.createElement("p");
+        p.innerHTML = "<br>";
+        ul.insertAdjacentElement("afterend", p);
+        li.remove();
+        if (!ul.children.length) ul.remove();
+        placeCursorIn(p);
+      } else {
+        const newLi = document.createElement("li");
+        insertChecklistCheckbox(newLi);
+        li.insertAdjacentElement("afterend", newLi);
+        placeCursorAtEnd(newLi);
+      }
+      scheduleSave();
+      return;
+    }
+
     if (li) {
-      if (li.closest("ul.checklist")) {
-        setTimeout(() => {
-          const nb = getCurrentLi();
-          if (nb && !nb.querySelector('input[type="checkbox"]')) insertChecklistCheckbox(nb);
-        }, 0);
-      } else if (li.textContent.trim() === "") {
+      if (li.textContent.trim() === "") {
         // uscita da un elemento vuoto — il browser lo porta fuori dalla lista; normalizziamo il blocco risultante
         setTimeout(() => {
           const nb = getCurrentBlock();
@@ -700,6 +887,13 @@ bodyEditor.addEventListener("change", (e) => {
 // Toolbar — stili paragrafo, formattazione, elenchi, allineamento
 // ---------------------------------------------------------------------------
 
+// Senza questo, toccare un pulsante della toolbar fa perdere la selezione del
+// testo nell'editor prima ancora che il click scatti (in particolare rompeva
+// evidenziatore e sottolineatura fine, che dipendono dal testo selezionato).
+document.querySelectorAll(".format-toolbar button").forEach(el => {
+  el.addEventListener("mousedown", (e) => e.preventDefault());
+});
+
 styleSelect.addEventListener("change", () => {
   bodyEditor.focus();
   document.execCommand("formatBlock", false, styleSelect.value);
@@ -717,10 +911,25 @@ alignRightBtn.addEventListener("click", () => { bodyEditor.focus(); document.exe
 
 checklistBtn.addEventListener("click", () => {
   bodyEditor.focus();
-  document.execCommand(
-    "insertHTML", false,
-    '<ul class="checklist"><li><input type="checkbox" contenteditable="false"> </li></ul><p><br></p>'
-  );
+  const li = getCurrentLi();
+  if (li && li.closest("ul.checklist")) return; // già dentro una checklist
+
+  const ul = document.createElement("ul");
+  ul.className = "checklist";
+  const newLi = document.createElement("li");
+  insertChecklistCheckbox(newLi);
+  ul.appendChild(newLi);
+
+  const block = getCurrentBlock();
+  if (block && block.tagName === "P" && block.textContent.trim() === "") {
+    block.replaceWith(ul);
+  } else if (block) {
+    block.insertAdjacentElement("afterend", ul);
+  } else {
+    bodyEditor.appendChild(ul);
+  }
+
+  placeCursorAtEnd(newLi);
   scheduleSave();
 });
 
@@ -755,6 +964,80 @@ function toggleInlineWrap(tag, className) {
 
 highlightBtn.addEventListener("click", () => { bodyEditor.focus(); toggleInlineWrap("mark", "hl"); });
 fineUnderlineBtn.addEventListener("click", () => { bodyEditor.focus(); toggleInlineWrap("span", "fine-underline"); });
+
+// ---------------------------------------------------------------------------
+// Tabelle
+// ---------------------------------------------------------------------------
+
+tableBtn.addEventListener("click", () => {
+  bodyEditor.focus();
+  document.execCommand(
+    "insertHTML", false,
+    '<table class="note-table"><tr><td><br></td><td><br></td><td><br></td></tr>' +
+    '<tr><td><br></td><td><br></td><td><br></td></tr>' +
+    '<tr><td><br></td><td><br></td><td><br></td></tr></table><p><br></p>'
+  );
+  scheduleSave();
+});
+
+deleteTableBtn.addEventListener("click", () => {
+  moreBackdrop.classList.remove("active");
+  const cell = getCurrentCell();
+  const table = cell && cell.closest("table");
+  if (table) {
+    table.remove();
+    scheduleSave();
+  } else {
+    toast("Metti il cursore dentro la tabella da eliminare");
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Colonne
+// ---------------------------------------------------------------------------
+
+columnsBtn.addEventListener("click", () => {
+  bodyEditor.classList.toggle("two-col");
+  columnsBtn.classList.toggle("active", bodyEditor.classList.contains("two-col"));
+  scheduleSave();
+});
+
+// ---------------------------------------------------------------------------
+// Indice automatico
+// ---------------------------------------------------------------------------
+
+tocBtn.addEventListener("click", () => {
+  moreBackdrop.classList.remove("active");
+  const headings = [...bodyEditor.querySelectorAll("h1,h2")].filter(h => !h.closest(".toc-block"));
+  if (!headings.length) {
+    toast("Aggiungi almeno un titolo o un sottotitolo");
+    return;
+  }
+  headings.forEach((h, i) => { if (!h.id) h.id = "sec-" + Date.now() + "-" + i; });
+
+  const existing = bodyEditor.querySelector(".toc-block");
+  if (existing) existing.remove();
+
+  const tocDiv = document.createElement("div");
+  tocDiv.className = "toc-block";
+  tocDiv.setAttribute("contenteditable", "false");
+  tocDiv.innerHTML = '<div class="toc-title">Indice</div>' + headings.map(h =>
+    `<a class="toc-link${h.tagName === "H2" ? " toc-sub" : ""}" href="#${h.id}">${escapeHTML(h.textContent)}</a>`
+  ).join("");
+
+  bodyEditor.insertBefore(tocDiv, bodyEditor.firstChild);
+  scheduleSave();
+  toast("Indice generato");
+});
+
+bodyEditor.addEventListener("click", (e) => {
+  const link = e.target.closest("a.toc-link");
+  if (!link) return;
+  e.preventDefault();
+  const id = link.getAttribute("href").slice(1);
+  const target = bodyEditor.querySelector(`#${CSS.escape(id)}`);
+  if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 
 function updateToolbarState() {
   const toggle = (btn, cmd) => {
@@ -804,6 +1087,7 @@ async function saveNote() {
     bodyHTML: bodyEditor.innerHTML,
     color: currentSelectedColor(),
     pinned: pinBtn.classList.contains("pinned"),
+    columns: bodyEditor.classList.contains("two-col"),
     updatedAt: serverTimestamp()
   };
 
@@ -869,6 +1153,7 @@ historyBtn.addEventListener("click", () => {
       restoreBtn.addEventListener("click", () => {
         titleInput.value = v.title || "";
         subjectInput.value = v.subject || "";
+        updateSubjectBanner();
         bodyEditor.innerHTML = v.bodyHTML || "";
         autoResizeTitle();
         versionBackdrop.classList.remove("active");
@@ -918,6 +1203,12 @@ printBtn.addEventListener("click", () => {
     day: "numeric", month: "long", year: "numeric"
   });
   const bodyHTML = bodyEditor.innerHTML;
+  const pageFormat = document.documentElement.getAttribute("data-width") || "a4";
+  const pageRule = {
+    a4: "size: A4; margin: 20mm 18mm;",
+    letter: "size: letter; margin: 1in;",
+    larga: "margin: 15mm;"
+  }[pageFormat] || "size: A4; margin: 20mm 18mm;";
 
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
@@ -939,7 +1230,7 @@ printBtn.addEventListener("click", () => {
 <title>${escapeHTML(title)}</title>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Work+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  @page { margin: 20mm 18mm; }
+  @page { ${pageRule} }
   * { box-sizing: border-box; }
   body { font-family: 'Work Sans', sans-serif; color: #1a1a1a; margin: 0; }
   .p-subject { font-size: 11pt; color: #666; margin-bottom: 4pt; }
@@ -950,13 +1241,27 @@ printBtn.addEventListener("click", () => {
   .p-body .block-heading { font-weight: 600; font-size: 12.5pt; margin: 16pt 0 6pt; }
   .p-body ul { margin: 0 0 10pt; padding-left: 18pt; }
   .p-body li { margin-bottom: 3pt; }
+  .p-body h1 { font-family: 'Fraunces', Georgia, serif; font-size: 16pt; font-weight: 600; margin: 16pt 0 6pt; }
+  .p-body h2 { font-family: 'Fraunces', Georgia, serif; font-size: 13pt; font-weight: 600; margin: 13pt 0 5pt; }
+  .p-body table.note-table { border-collapse: collapse; width: 100%; margin: 0 0 10pt; }
+  .p-body table.note-table td { border: 1px solid #999; padding: 5pt 7pt; font-size: 10.5pt; }
+  .p-body .toc-block { background: #f2f2f2; border-radius: 6pt; padding: 10pt 12pt; margin: 0 0 14pt; }
+  .p-body .toc-title { font-weight: 600; font-size: 8.5pt; text-transform: uppercase; color: #777; margin-bottom: 5pt; }
+  .p-body .toc-link { display: block; font-size: 10pt; color: #1a1a1a; text-decoration: none; padding: 1.5pt 0; }
+  .p-body .toc-link.toc-sub { padding-left: 10pt; color: #555; }
+  .p-body ul.checklist { list-style: none; padding-left: 2pt; }
+  .p-body ul.checklist li { display: flex; align-items: flex-start; gap: 6pt; }
+  .p-body ul.checklist li.checked { color: #999; text-decoration: line-through; }
+  .p-body.two-col { column-count: 2; column-gap: 20pt; }
+  mark.hl { background: rgba(253, 200, 60, 0.45); }
+  .fine-underline { text-decoration: underline; text-decoration-thickness: 1px; }
 </style>
 </head>
 <body>
   ${subject ? `<div class="p-subject">${escapeHTML(subject)}</div>` : ""}
   <div class="p-title">${escapeHTML(title)}</div>
   <div class="p-date">${dateStr}</div>
-  <div class="p-body">${bodyHTML}</div>
+  <div class="p-body${bodyEditor.classList.contains("two-col") ? " two-col" : ""}">${bodyHTML}</div>
 </body>
 </html>`);
   printDoc.close();
@@ -1048,6 +1353,232 @@ deleteAccountBtn.addEventListener("click", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Materie
+// ---------------------------------------------------------------------------
+
+function renderMaterieList() {
+  materieList.innerHTML = "";
+  materieEmpty.style.display = subjectsCache.length ? "none" : "block";
+
+  subjectsCache.forEach(s => {
+    const count = notesCache.filter(n => n.subject === s.name).length;
+    const row = document.createElement("button");
+    row.className = "materia-row";
+    row.innerHTML = `
+      <span class="materia-color" style="background:${colorHex(s.color)}"></span>
+      <span class="materia-name">${escapeHTML(s.name)}</span>
+      <span class="materia-count">${count} appunt${count === 1 ? "o" : "i"}</span>
+    `;
+    row.addEventListener("click", () => openMateriaForm(s));
+    materieList.appendChild(row);
+  });
+}
+
+function renderMateriaColorDots(activeKey) {
+  materiaColorDots.innerHTML = "";
+  PALETTE.forEach(c => {
+    const dot = document.createElement("button");
+    dot.type = "button";
+    dot.className = "color-dot" + (c.key === activeKey ? " active" : "");
+    dot.style.background = c.hex;
+    dot.dataset.color = c.key;
+    dot.addEventListener("click", () => {
+      [...materiaColorDots.children].forEach(d => d.classList.remove("active"));
+      dot.classList.add("active");
+    });
+    materiaColorDots.appendChild(dot);
+  });
+}
+
+function openMateriaForm(materia) {
+  editingMateriaId = materia ? materia.id : null;
+  materiaFormTitle.textContent = materia ? "Modifica materia" : "Nuova materia";
+  materiaNameInput.value = materia ? materia.name : "";
+  renderMateriaColorDots(materia ? materia.color : PALETTE[0].key);
+  materiaDeleteBtn.style.display = materia ? "block" : "none";
+  materiaFormBackdrop.classList.add("active");
+  setTimeout(() => materiaNameInput.focus(), 50);
+}
+
+materiaAddBtn.addEventListener("click", () => openMateriaForm(null));
+materiaFormClose.addEventListener("click", () => materiaFormBackdrop.classList.remove("active"));
+materiaFormBackdrop.addEventListener("click", (e) => {
+  if (e.target === materiaFormBackdrop) materiaFormBackdrop.classList.remove("active");
+});
+
+materiaSaveBtn.addEventListener("click", async () => {
+  const name = materiaNameInput.value.trim();
+  if (!name) { materiaNameInput.focus(); return; }
+  const activeDot = materiaColorDots.querySelector(".color-dot.active");
+  const color = activeDot ? activeDot.dataset.color : PALETTE[0].key;
+
+  try {
+    if (editingMateriaId) {
+      await setDoc(doc(db, "users", currentUser.uid, "subjects", editingMateriaId), { name, color }, { merge: true });
+    } else {
+      await addDoc(collection(db, "users", currentUser.uid, "subjects"), { name, color, createdAt: serverTimestamp() });
+    }
+    materiaFormBackdrop.classList.remove("active");
+  } catch (err) {
+    console.error(err);
+    toast("Errore nel salvataggio della materia");
+  }
+});
+
+materiaDeleteBtn.addEventListener("click", async () => {
+  if (!editingMateriaId) return;
+  const ok = window.confirm("Eliminare questa materia? Gli appunti già scritti non verranno toccati.");
+  if (!ok) return;
+  try {
+    await deleteDoc(doc(db, "users", currentUser.uid, "subjects", editingMateriaId));
+    materiaFormBackdrop.classList.remove("active");
+    toast("Materia eliminata");
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+function refreshSubjectSelects() {
+  // select materia nell'editor dell'appunto
+  const prevSubjectValue = subjectInput.value;
+  subjectInput.innerHTML = '<option value="">Nessuna materia</option>';
+  subjectsCache.forEach(s => {
+    const opt = document.createElement("option");
+    opt.value = s.name;
+    opt.textContent = s.name;
+    subjectInput.appendChild(opt);
+  });
+  subjectInput.value = prevSubjectValue;
+  if (subjectInput.value !== prevSubjectValue && prevSubjectValue) {
+    // materia non (più) presente nell'elenco: la mostriamo comunque per non perdere il dato
+    const opt = document.createElement("option");
+    opt.value = prevSubjectValue;
+    opt.textContent = prevSubjectValue;
+    subjectInput.appendChild(opt);
+    subjectInput.value = prevSubjectValue;
+  }
+
+  // select materia nel form dell'orario
+  const prevSlotValue = slotSubjectSelect.value;
+  slotSubjectSelect.innerHTML = "";
+  if (!subjectsCache.length) {
+    slotSubjectSelect.innerHTML = '<option value="">Aggiungi prima una materia</option>';
+  } else {
+    subjectsCache.forEach(s => {
+      const opt = document.createElement("option");
+      opt.value = s.id;
+      opt.textContent = s.name;
+      slotSubjectSelect.appendChild(opt);
+    });
+    slotSubjectSelect.value = prevSlotValue;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Orario settimanale
+// ---------------------------------------------------------------------------
+
+const DAY_LABELS = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"];
+
+function renderDayTabs() {
+  dayTabs.innerHTML = "";
+  DAY_LABELS.forEach((label, i) => {
+    const btn = document.createElement("button");
+    btn.className = "chip" + (i === activeDayTab ? " active" : "");
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      activeDayTab = i;
+      [...dayTabs.children].forEach(c => c.classList.remove("active"));
+      btn.classList.add("active");
+      renderSlotList();
+    });
+    dayTabs.appendChild(btn);
+  });
+}
+
+function renderSlotList() {
+  const daySlots = timetableCache
+    .filter(s => Number(s.day) === activeDayTab)
+    .sort((a, b) => (a.start || "").localeCompare(b.start || ""));
+
+  slotList.innerHTML = "";
+  timetableEmpty.style.display = daySlots.length ? "none" : "block";
+
+  daySlots.forEach(slot => {
+    const subject = subjectsCache.find(s => s.id === slot.subjectId);
+    const color = colorHex(subject ? subject.color : "mustard");
+    const card = document.createElement("button");
+    card.className = "slot-card";
+    card.style.setProperty("--slot-color", color);
+    card.innerHTML = `
+      <div class="slot-time">${slot.start || ""}–${slot.end || ""}</div>
+      <div class="slot-info">
+        <div class="slot-subject">${escapeHTML(subject ? subject.name : "Materia eliminata")}</div>
+        ${slot.room ? `<div class="slot-room">${escapeHTML(slot.room)}</div>` : ""}
+      </div>
+    `;
+    card.addEventListener("click", () => openSlotForm(slot));
+    slotList.appendChild(card);
+  });
+}
+
+function openSlotForm(slot) {
+  editingSlotId = slot ? slot.id : null;
+  slotFormTitle.textContent = slot ? "Modifica lezione" : "Nuova lezione";
+  slotDaySelect.value = String(slot ? slot.day : activeDayTab);
+  slotStartInput.value = slot ? slot.start : "09:00";
+  slotEndInput.value = slot ? slot.end : "10:00";
+  slotRoomInput.value = slot ? (slot.room || "") : "";
+  refreshSubjectSelects();
+  if (slot) slotSubjectSelect.value = slot.subjectId;
+  slotDeleteBtn.style.display = slot ? "block" : "none";
+  slotFormBackdrop.classList.add("active");
+}
+
+slotAddBtn.addEventListener("click", () => openSlotForm(null));
+slotFormClose.addEventListener("click", () => slotFormBackdrop.classList.remove("active"));
+slotFormBackdrop.addEventListener("click", (e) => {
+  if (e.target === slotFormBackdrop) slotFormBackdrop.classList.remove("active");
+});
+
+slotSaveBtn.addEventListener("click", async () => {
+  if (!subjectsCache.length) {
+    toast("Aggiungi prima una materia");
+    return;
+  }
+  const payload = {
+    day: Number(slotDaySelect.value),
+    start: slotStartInput.value,
+    end: slotEndInput.value,
+    subjectId: slotSubjectSelect.value,
+    room: slotRoomInput.value.trim()
+  };
+  try {
+    if (editingSlotId) {
+      await setDoc(doc(db, "users", currentUser.uid, "timetable", editingSlotId), payload, { merge: true });
+    } else {
+      await addDoc(collection(db, "users", currentUser.uid, "timetable"), payload);
+    }
+    slotFormBackdrop.classList.remove("active");
+  } catch (err) {
+    console.error(err);
+    toast("Errore nel salvataggio della lezione");
+  }
+});
+
+slotDeleteBtn.addEventListener("click", async () => {
+  if (!editingSlotId) return;
+  const ok = window.confirm("Eliminare questa lezione dall'orario?");
+  if (!ok) return;
+  try {
+    await deleteDoc(doc(db, "users", currentUser.uid, "timetable", editingSlotId));
+    slotFormBackdrop.classList.remove("active");
+  } catch (err) {
+    console.error(err);
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Keyboard: Esc closes version sheet
 // ---------------------------------------------------------------------------
 
@@ -1056,5 +1587,7 @@ document.addEventListener("keydown", (e) => {
     versionBackdrop.classList.remove("active");
     moreBackdrop.classList.remove("active");
     newnoteBackdrop.classList.remove("active");
+    materiaFormBackdrop.classList.remove("active");
+    slotFormBackdrop.classList.remove("active");
   }
 });

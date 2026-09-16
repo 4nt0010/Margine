@@ -87,9 +87,9 @@
   html[data-density="normale"] { --editor-line-height: 1.7; }
   html[data-density="ariosa"] { --editor-line-height: 2; }
 
-  html[data-width="stretta"] { --page-max-width: 560px; }
-  html[data-width="normale"] { --page-max-width: 720px; }
-  html[data-width="larga"] { --page-max-width: 920px; }
+  html[data-width="a4"] { --page-max-width: 740px; }
+  html[data-width="letter"] { --page-max-width: 700px; }
+  html[data-width="larga"] { --page-max-width: 960px; }
 
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 
@@ -189,6 +189,31 @@
   }
   .field input:focus { border-color: var(--card-denim); }
 
+  .field select {
+    width: 100%;
+    background-color: rgba(255,255,255,0.55);
+    border: 1px solid rgba(255,255,255,0.9);
+    border-radius: 14px;
+    padding: 12px 14px;
+    font-size: 15px;
+    color: var(--ink-strong);
+    -webkit-appearance: none;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23756D5B' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    background-size: 13px;
+  }
+
+  .topbar-title {
+    flex: 1;
+    text-align: center;
+    font-family: var(--font-display);
+    font-weight: 500;
+    font-size: 16px;
+    color: var(--ink-strong);
+  }
+
   .btn-primary {
     width: 100%;
     background: rgba(231, 180, 74, 0.55);
@@ -246,6 +271,47 @@
   .icon-btn svg { width: 17px; height: 17px; }
   .icon-btn.pinned { color: #B4780C; }
   .icon-btn.pinned svg { fill: #B4780C; }
+
+  /* ---------- Materie view ---------- */
+
+  .materie-scroll { flex: 1; overflow-y: auto; padding: 10px 24px 60px; }
+
+  .materia-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 6px;
+    border-bottom: 1px solid rgba(0,0,0,0.07);
+    width: 100%;
+    text-align: left;
+    color: var(--ink-strong);
+  }
+  .materia-row:last-child { border-bottom: none; }
+  .materia-color { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+  .materia-name { flex: 1; font-size: 15.5px; }
+  .materia-count { font-size: 12.5px; color: var(--ink-faint); }
+
+  /* ---------- Timetable view ---------- */
+
+  .timetable-scroll { flex: 1; overflow-y: auto; padding: 4px 24px 60px; }
+
+  .slot-card {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: var(--radius-card);
+    margin-bottom: 10px;
+    background: rgba(255,255,255,0.5);
+    border-left: 4px solid var(--slot-color, var(--card-mustard));
+    width: 100%;
+    text-align: left;
+    box-shadow: 0 3px 10px var(--paper-shadow);
+  }
+  .slot-time { font-size: 13px; font-weight: 600; color: var(--ink-strong); min-width: 64px; }
+  .slot-info { flex: 1; min-width: 0; }
+  .slot-subject { font-size: 15px; font-weight: 500; color: var(--ink-strong); }
+  .slot-room { font-size: 12.5px; color: var(--ink-dim); margin-top: 2px; }
 
   .search-row { padding: 0 24px 14px; flex-shrink: 0; display: flex; gap: 8px; }
 
@@ -478,9 +544,36 @@
     color: var(--ink-faint);
   }
 
-  .subject-input { font-size: 13px; color: var(--ink-dim); font-weight: 500; width: 100%; margin-bottom: 6px; }
-  .subject-input::placeholder { color: var(--ink-faint); }
-
+  .subject-input {
+    display: inline-flex;
+    align-items: center;
+    font-family: var(--font-body);
+    font-size: 13.5px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: var(--ink-on-card);
+    background: rgba(0,0,0,0.06);
+    width: auto;
+    max-width: 100%;
+    margin-bottom: 20px;
+    -webkit-appearance: none;
+    appearance: none;
+    cursor: pointer;
+    border-radius: 10px;
+    padding: 9px 32px 9px 16px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23241D10' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 11px center;
+    background-size: 11px;
+    transition: background-color 0.15s;
+  }
+  .subject-input.subject-empty {
+    color: var(--ink-faint);
+    background-color: rgba(0,0,0,0.04);
+    border: 1px dashed var(--ink-faint);
+    font-weight: 500;
+    padding: 8px 31px 8px 15px;
+  }
   .title-input {
     font-family: var(--font-display);
     font-size: calc(29px * var(--editor-scale));
@@ -510,6 +603,46 @@
   #body-editor ul.checklist li { display: flex; align-items: flex-start; gap: 8px; margin-bottom: 7px; }
   #body-editor ul.checklist input[type="checkbox"] { margin-top: 5px; width: 15px; height: 15px; accent-color: var(--ink-strong); flex-shrink: 0; }
   #body-editor ul.checklist li.checked { color: var(--ink-faint); text-decoration: line-through; }
+
+  #body-editor table.note-table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0 0 16px;
+  }
+  #body-editor table.note-table td {
+    border: 1px solid var(--ink-faint);
+    padding: 8px 10px;
+    min-width: 60px;
+    vertical-align: top;
+  }
+
+  #body-editor .toc-block {
+    background: rgba(0,0,0,0.035);
+    border-radius: 12px;
+    padding: 14px 18px;
+    margin: 0 0 22px;
+  }
+  #body-editor .toc-title {
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--ink-dim);
+    margin-bottom: 8px;
+  }
+  #body-editor .toc-link {
+    display: block;
+    font-size: 14px;
+    color: var(--ink-strong);
+    text-decoration: none;
+    padding: 3px 0;
+    cursor: pointer;
+  }
+  #body-editor .toc-link.toc-sub { padding-left: 16px; font-size: 13px; color: var(--ink-dim); }
+
+  #body-editor.two-col { columns: 2; column-gap: 36px; }
+  #body-editor.two-col table.note-table,
+  #body-editor.two-col .toc-block { break-inside: avoid; }
 
   /* ---------- Version sheet ---------- */
 
@@ -710,6 +843,12 @@
     <div class="list-header">
       <p class="list-wordmark">Margine</p>
       <div class="header-right">
+        <button class="icon-btn glass" id="timetable-btn" title="Orario settimanale">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        </button>
+        <button class="icon-btn glass" id="materie-btn" title="Materie">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/></svg>
+        </button>
         <button class="icon-btn glass" id="account-btn" title="Account">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
         </button>
@@ -742,6 +881,49 @@
     <button class="fab" id="new-note-btn" title="Nuovo appunto">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
     </button>
+  </div>
+
+  <!-- MATERIE -->
+  <div id="materie-view" class="view">
+    <div class="editor-topbar glass">
+      <button class="icon-btn" id="materie-back-btn" title="Indietro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="topbar-title">Materie</span>
+      <div class="editor-topbar-right">
+        <button class="icon-btn" id="materia-add-btn" title="Nuova materia">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="materie-scroll">
+      <div id="materie-list"></div>
+      <div class="empty-state" id="materie-empty" style="display:none;">
+        <p>Ancora nessuna materia. Tocca + per aggiungerne una.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIMETABLE -->
+  <div id="timetable-view" class="view">
+    <div class="editor-topbar glass">
+      <button class="icon-btn" id="timetable-back-btn" title="Indietro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="topbar-title">Orario</span>
+      <div class="editor-topbar-right">
+        <button class="icon-btn" id="slot-add-btn" title="Nuova lezione">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      </div>
+    </div>
+    <div class="chips-row" id="day-tabs"></div>
+    <div class="timetable-scroll">
+      <div id="slot-list"></div>
+      <div class="empty-state" id="timetable-empty" style="display:none;">
+        <p>Nessuna lezione per questo giorno.</p>
+      </div>
+    </div>
   </div>
 
   <!-- EDITOR -->
@@ -797,6 +979,13 @@
       <button class="icon-btn" id="align-right-btn" title="Allinea a destra">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="10" y1="12" x2="20" y2="12"/><line x1="6" y1="18" x2="20" y2="18"/></svg>
       </button>
+      <span class="toolbar-divider"></span>
+      <button class="icon-btn" id="table-btn" title="Inserisci tabella">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
+      </button>
+      <button class="icon-btn" id="columns-btn" title="Due colonne">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="18" rx="1"/><rect x="14" y="3" width="7" height="18" rx="1"/></svg>
+      </button>
     </div>
 
     <div class="color-dots glass" id="color-dots"></div>
@@ -804,7 +993,9 @@
     <div class="editor-scroll">
       <div class="editor-meta" id="editor-meta"></div>
       <div class="document-page">
-        <input type="text" class="subject-input" id="subject-input" placeholder="Materia (facoltativo)">
+        <select class="subject-input" id="subject-input">
+          <option value="">Nessuna materia</option>
+        </select>
         <textarea class="title-input" id="title-input" placeholder="Titolo della lezione" rows="1"></textarea>
         <div id="body-editor" contenteditable="true" data-placeholder="Scrivi qui. “- ” a inizio riga crea un elenco puntato, oppure usa la barra qui sopra per gli stili."></div>
       </div>
@@ -852,11 +1043,11 @@
           </select>
         </div>
         <div class="aspect-row">
-          <label for="width-select">Larghezza pagina</label>
+          <label for="width-select">Formato foglio</label>
           <select id="width-select">
-            <option value="stretta">Stretta</option>
-            <option value="normale">Normale</option>
-            <option value="larga">Larga</option>
+            <option value="a4">A4</option>
+            <option value="letter">Letter (US)</option>
+            <option value="larga">Larga (schermo intero)</option>
           </select>
         </div>
       </div>
@@ -901,6 +1092,14 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
       Duplica appunto
     </button>
+    <button class="action-row" id="toc-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+      Genera indice
+    </button>
+    <button class="action-row" id="delete-table-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+      Elimina tabella corrente
+    </button>
     <button class="action-row" id="history-btn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
       Cronologia versioni
@@ -930,6 +1129,61 @@
       Modello lezione standard
     </button>
     <button class="sheet-close" id="newnote-close">Chiudi</button>
+  </div>
+</div>
+
+<!-- Materia form -->
+<div class="sheet-backdrop" id="materia-form-backdrop">
+  <div class="sheet">
+    <h3 id="materia-form-title">Nuova materia</h3>
+    <div class="field">
+      <label for="materia-name-input">Nome</label>
+      <input type="text" id="materia-name-input" placeholder="Es. Analisi Matematica">
+    </div>
+    <div class="color-dots" id="materia-color-dots" style="margin:4px 0 18px; padding:0; background:none; border:none; box-shadow:none; backdrop-filter:none;"></div>
+    <button class="btn-primary" id="materia-save-btn">Salva</button>
+    <button class="account-action danger" id="materia-delete-btn" style="margin-top:10px; display:none;">Elimina materia</button>
+    <button class="sheet-close" id="materia-form-close">Annulla</button>
+  </div>
+</div>
+
+<!-- Slot orario form -->
+<div class="sheet-backdrop" id="slot-form-backdrop">
+  <div class="sheet">
+    <h3 id="slot-form-title">Nuova lezione</h3>
+    <div class="field">
+      <label for="slot-day-select">Giorno</label>
+      <select id="slot-day-select">
+        <option value="0">Lunedì</option>
+        <option value="1">Martedì</option>
+        <option value="2">Mercoledì</option>
+        <option value="3">Giovedì</option>
+        <option value="4">Venerdì</option>
+        <option value="5">Sabato</option>
+        <option value="6">Domenica</option>
+      </select>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <div class="field" style="flex:1;">
+        <label for="slot-start-input">Inizio</label>
+        <input type="time" id="slot-start-input" value="09:00">
+      </div>
+      <div class="field" style="flex:1;">
+        <label for="slot-end-input">Fine</label>
+        <input type="time" id="slot-end-input" value="10:00">
+      </div>
+    </div>
+    <div class="field">
+      <label for="slot-subject-select">Materia</label>
+      <select id="slot-subject-select"></select>
+    </div>
+    <div class="field">
+      <label for="slot-room-input">Aula (facoltativo)</label>
+      <input type="text" id="slot-room-input" placeholder="Es. Aula 3, Edificio B">
+    </div>
+    <button class="btn-primary" id="slot-save-btn">Salva</button>
+    <button class="account-action danger" id="slot-delete-btn" style="margin-top:10px; display:none;">Elimina lezione</button>
+    <button class="sheet-close" id="slot-form-close">Annulla</button>
   </div>
 </div>
 
