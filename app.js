@@ -183,11 +183,6 @@ function friendlyAuthError(code) {
   }
 }
 
-accountBtn.addEventListener("click", () => {
-  openAccountView();
-});
-accountBackBtn.addEventListener("click", () => showView("list"));
-
 onAuthStateChanged(auth, (user) => {
   currentUser = user;
   if (unsubscribeNotes) { unsubscribeNotes(); unsubscribeNotes = null; }
@@ -201,6 +196,11 @@ onAuthStateChanged(auth, (user) => {
     showView("auth");
   }
 });
+
+accountBtn.addEventListener("click", () => {
+  openAccountView();
+});
+accountBackBtn.addEventListener("click", () => showView("list"));
 
 // ---------------------------------------------------------------------------
 // Notes: realtime list
