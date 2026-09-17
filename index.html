@@ -43,6 +43,15 @@
     --editor-scale: 1;
     --editor-line-height: 1.7;
     --page-max-width: 720px;
+
+    --surface-fill: rgba(255,255,255,0.55);
+    --surface-fill-hover: rgba(255,255,255,0.5);
+    --surface-border: rgba(255,255,255,0.85);
+    --hairline: rgba(0,0,0,0.08);
+    --subtle-fill: rgba(0,0,0,0.05);
+    --sheet-bg: rgba(250, 245, 231, 0.88);
+    --active-tint: rgba(41, 51, 74, 0.14);
+    --zoom-level: 1;
   }
 
   html[data-theme="scuro"] {
@@ -60,6 +69,13 @@
     --glass-shadow: 0 10px 30px rgba(0,0,0,0.5);
     --glass-highlight: inset 0 1px 0 rgba(255,255,255,0.05);
     --page-bg: #242219;
+    --surface-fill: rgba(255,255,255,0.08);
+    --surface-fill-hover: rgba(255,255,255,0.13);
+    --surface-border: rgba(255,255,255,0.18);
+    --hairline: rgba(255,255,255,0.10);
+    --subtle-fill: rgba(255,255,255,0.06);
+    --sheet-bg: rgba(28, 27, 22, 0.92);
+    --active-tint: rgba(255, 255, 255, 0.18);
   }
 
   html[data-theme="pergamena"] {
@@ -77,6 +93,13 @@
     --glass-shadow: 0 10px 30px rgba(90,60,20,0.15);
     --glass-highlight: inset 0 1px 0 rgba(255,255,255,0.6);
     --page-bg: #FBF3DE;
+    --surface-fill: rgba(255,250,235,0.55);
+    --surface-fill-hover: rgba(255,250,235,0.75);
+    --surface-border: rgba(255,255,255,0.75);
+    --hairline: rgba(120,90,40,0.16);
+    --subtle-fill: rgba(120,90,40,0.08);
+    --sheet-bg: rgba(251, 243, 222, 0.9);
+    --active-tint: rgba(74, 58, 34, 0.16);
   }
 
   html[data-fontsize="s"] { --editor-scale: 0.9; }
@@ -181,8 +204,8 @@
 
   .field input {
     width: 100%;
-    background: rgba(255,255,255,0.55);
-    border: 1px solid rgba(255,255,255,0.9);
+    background: var(--surface-fill);
+    border: 1px solid var(--surface-border);
     border-radius: 14px;
     padding: 12px 14px;
     font-size: 15px;
@@ -191,8 +214,8 @@
 
   .field select {
     width: 100%;
-    background-color: rgba(255,255,255,0.55);
-    border: 1px solid rgba(255,255,255,0.9);
+    background-color: var(--surface-fill);
+    border: 1px solid var(--surface-border);
     border-radius: 14px;
     padding: 12px 14px;
     font-size: 15px;
@@ -267,7 +290,7 @@
     justify-content: center;
     color: var(--ink);
   }
-  .icon-btn:hover { background: rgba(255,255,255,0.5); }
+  .icon-btn:hover { background: var(--surface-fill-hover); }
   .icon-btn svg { width: 17px; height: 17px; }
   .icon-btn.pinned { color: #B4780C; }
   .icon-btn.pinned svg { fill: #B4780C; }
@@ -280,7 +303,7 @@
     display: flex;
     align-items: center;
     gap: 4px;
-    border-bottom: 1px solid rgba(0,0,0,0.07);
+    border-bottom: 1px solid var(--hairline);
     color: var(--ink-strong);
   }
   .materia-row:last-child { border-bottom: none; }
@@ -320,7 +343,7 @@
     padding: 14px 16px;
     border-radius: var(--radius-card);
     margin-bottom: 10px;
-    background: rgba(255,255,255,0.5);
+    background: var(--surface-fill);
     border-left: 4px solid var(--slot-color, var(--card-mustard));
     width: 100%;
     text-align: left;
@@ -375,8 +398,8 @@
     flex-shrink: 0;
     padding: 7px 15px;
     border-radius: var(--radius-pill);
-    background: rgba(255,255,255,0.4);
-    border: 1px solid rgba(255,255,255,0.7);
+    background: var(--surface-fill);
+    border: 1px solid var(--surface-border);
     font-size: 13px;
     color: var(--ink-dim);
     white-space: nowrap;
@@ -412,7 +435,7 @@
     position: absolute;
     top: 0; right: 0;
     width: 16px; height: 16px;
-    background: rgba(0,0,0,0.08);
+    background: var(--subtle-fill);
     border-radius: 0 var(--radius-card) 0 10px;
   }
   .note-card:active { transform: scale(0.98); }
@@ -518,13 +541,13 @@
     background-position: right 6px center;
     background-size: 13px;
   }
-  .style-select:hover { background-color: rgba(255,255,255,0.5); }
+  .style-select:hover { background-color: var(--surface-fill-hover); }
 
-  .toolbar-divider { width: 1px; height: 20px; background: rgba(0,0,0,0.1); margin: 0 4px; flex-shrink: 0; }
+  .toolbar-divider { width: 1px; height: 20px; background: var(--hairline); margin: 0 4px; flex-shrink: 0; }
 
   .format-toolbar .icon-btn { width: 36px; height: 36px; flex-shrink: 0; }
-  .format-toolbar .icon-btn:hover { background: rgba(255,255,255,0.5); }
-  .format-toolbar .icon-btn.active { background: rgba(41, 51, 74, 0.14); color: var(--ink-strong); }
+  .format-toolbar .icon-btn:hover { background: var(--surface-fill-hover); }
+  .format-toolbar .icon-btn.active { background: var(--active-tint); color: var(--ink-strong); }
 
   .color-dots {
     display: flex;
@@ -535,6 +558,7 @@
     border-radius: var(--radius-pill);
     position: relative;
     z-index: 2;
+    flex-shrink: 0;
   }
   .color-dot { width: 18px; height: 18px; border-radius: 50%; border: 2px solid transparent; }
   .color-dot.active { border-color: var(--ink-strong); }
@@ -549,9 +573,58 @@
     border-radius: 6px;
     box-shadow: 0 2px 20px rgba(50, 40, 15, 0.12), 0 0 0 1px rgba(50, 40, 15, 0.04);
     min-height: calc(100vh - 300px);
+    zoom: var(--zoom-level, 1);
   }
   @media (max-width: 560px) {
     .document-page { padding: 30px 22px; }
+  }
+
+  .zoom-control {
+    position: absolute;
+    right: 16px;
+    bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: var(--radius-pill);
+    z-index: 6;
+  }
+  .zoom-control .icon-btn { width: 28px; height: 28px; font-size: 16px; font-weight: 600; }
+  #zoom-slider { width: 90px; accent-color: var(--ink-strong); }
+  #zoom-label { font-size: 12px; color: var(--ink-dim); min-width: 34px; text-align: center; }
+
+  .fmt-popover {
+    position: fixed;
+    display: none;
+    align-items: center;
+    gap: 7px;
+    padding: 9px;
+    border-radius: 16px;
+    background: var(--sheet-bg);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border: 1px solid var(--surface-border);
+    box-shadow: var(--glass-shadow);
+    z-index: 30;
+  }
+  .fmt-popover.active { display: flex; }
+  .fmt-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    flex-shrink: 0;
+  }
+  .fmt-swatch.fmt-swatch-active { border-color: var(--ink-strong); }
+  .fmt-swatch-remove {
+    background: var(--surface-fill);
+    border: 1px solid var(--surface-border) !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--ink-dim);
+    font-size: 13px;
   }
 
   .editor-meta {
@@ -570,7 +643,7 @@
     font-weight: 700;
     letter-spacing: 0.01em;
     color: var(--ink-on-card);
-    background: rgba(0,0,0,0.06);
+    background: var(--subtle-fill);
     width: auto;
     max-width: 100%;
     margin-bottom: 20px;
@@ -587,7 +660,7 @@
   }
   .subject-input.subject-empty {
     color: var(--ink-faint);
-    background-color: rgba(0,0,0,0.04);
+    background-color: var(--subtle-fill);
     border: 1px dashed var(--ink-faint);
     font-weight: 500;
     padding: 8px 31px 8px 15px;
@@ -635,7 +708,7 @@
   }
 
   #body-editor .toc-block {
-    background: rgba(0,0,0,0.035);
+    background: var(--subtle-fill);
     border-radius: 12px;
     padding: 14px 18px;
     margin: 0 0 22px;
@@ -675,10 +748,10 @@
   .sheet-backdrop.active { display: flex; }
 
   .sheet {
-    background: rgba(250, 245, 231, 0.86);
+    background: var(--sheet-bg);
     backdrop-filter: blur(26px) saturate(180%);
     -webkit-backdrop-filter: blur(26px) saturate(180%);
-    border: 1px solid rgba(255,255,255,0.7);
+    border: 1px solid var(--surface-border);
     width: 100%;
     border-radius: 26px 26px 0 0;
     padding: 20px 20px 28px;
@@ -693,7 +766,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 14px 4px;
-    border-bottom: 1px solid rgba(0,0,0,0.08);
+    border-bottom: 1px solid var(--hairline);
   }
   .version-item:last-child { border-bottom: none; }
   .version-item .v-label { font-size: 14.5px; color: var(--ink-strong); }
@@ -711,7 +784,7 @@
     padding: 13px 6px;
     font-size: 15px;
     color: var(--ink-strong);
-    border-bottom: 1px solid rgba(0,0,0,0.07);
+    border-bottom: 1px solid var(--hairline);
     text-align: left;
   }
   .action-row:last-child { border-bottom: none; }
@@ -724,15 +797,15 @@
     align-items: center;
     justify-content: space-between;
     padding: 10px 0;
-    border-bottom: 1px solid rgba(0,0,0,0.07);
+    border-bottom: 1px solid var(--hairline);
   }
   .aspect-row:last-child { border-bottom: none; }
   .aspect-row label { font-size: 14px; color: var(--ink-strong); }
   .aspect-row select {
     font-size: 13.5px;
     color: var(--ink-strong);
-    background: rgba(255,255,255,0.5);
-    border: 1px solid rgba(255,255,255,0.8);
+    background: var(--surface-fill);
+    border: 1px solid var(--surface-border);
     border-radius: 10px;
     padding: 6px 24px 6px 10px;
     -webkit-appearance: none;
@@ -814,8 +887,8 @@
     max-width: 360px;
     padding: 14px;
     border-radius: 14px;
-    background: rgba(255,255,255,0.4);
-    border: 1px solid rgba(255,255,255,0.7);
+    background: var(--surface-fill);
+    border: 1px solid var(--surface-border);
     font-size: 14.5px;
     font-weight: 600;
     color: var(--ink-strong);
@@ -1012,11 +1085,15 @@
       <button class="icon-btn" id="bold-btn" title="Grassetto"><strong style="font-family: var(--font-display); font-size:15px;">B</strong></button>
       <button class="icon-btn" id="italic-btn" title="Corsivo"><em style="font-family: var(--font-display); font-size:15px;">i</em></button>
       <button class="icon-btn" id="underline-btn" title="Sottolineato"><span style="text-decoration:underline; font-size:15px;">U</span></button>
+      <button class="icon-btn" id="strikethrough-btn" title="Barrato"><span style="text-decoration:line-through; font-size:15px;">S</span></button>
+      <button class="icon-btn" id="textcolor-btn" title="Colore testo">
+        <span style="display:flex; flex-direction:column; align-items:center;">
+          <span style="font-family: var(--font-display); font-size:14px; line-height:1;">A</span>
+          <span id="textcolor-swatch" style="width:16px; height:3px; border-radius:2px; background:#C0392B; margin-top:2px;"></span>
+        </span>
+      </button>
       <button class="icon-btn" id="highlight-btn" title="Evidenziatore">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 11-6 6v3h3l6-6"/><path d="m17 3 4 4L11 17l-4-4Z"/></svg>
-      </button>
-      <button class="icon-btn" id="fine-underline-btn" title="Sottolineatura a penna fine">
-        <span style="font-size:15px; text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:2px;">u</span>
       </button>
       <span class="toolbar-divider"></span>
       <button class="icon-btn" id="list-btn" title="Elenco puntato">
@@ -1047,6 +1124,9 @@
       </button>
     </div>
 
+    <div class="fmt-popover" id="hl-popover"></div>
+    <div class="fmt-popover" id="tc-popover"></div>
+
     <div class="color-dots glass" id="color-dots"></div>
 
     <div class="editor-scroll">
@@ -1059,9 +1139,14 @@
         <div id="body-editor" contenteditable="true" data-placeholder="Scrivi qui. “- ” a inizio riga crea un elenco puntato, oppure usa la barra qui sopra per gli stili."></div>
       </div>
     </div>
-  </div>
 
-  <!-- ACCOUNT -->
+    <div class="zoom-control glass">
+      <button class="icon-btn" id="zoom-out-btn" title="Rimpicciolisci">−</button>
+      <input type="range" id="zoom-slider" min="60" max="160" step="5" value="100">
+      <span id="zoom-label">100%</span>
+      <button class="icon-btn" id="zoom-in-btn" title="Ingrandisci">+</button>
+    </div>
+  </div>
   <div id="account-view" class="view">
     <div class="editor-topbar glass">
       <button class="icon-btn" id="account-back-btn" title="Indietro">

@@ -111,7 +111,15 @@ const boldBtn = document.getElementById("bold-btn");
 const italicBtn = document.getElementById("italic-btn");
 const underlineBtn = document.getElementById("underline-btn");
 const highlightBtn = document.getElementById("highlight-btn");
-const fineUnderlineBtn = document.getElementById("fine-underline-btn");
+const strikethroughBtn = document.getElementById("strikethrough-btn");
+const textcolorBtn = document.getElementById("textcolor-btn");
+const textcolorSwatch = document.getElementById("textcolor-swatch");
+const hlPopover = document.getElementById("hl-popover");
+const tcPopover = document.getElementById("tc-popover");
+const zoomOutBtn = document.getElementById("zoom-out-btn");
+const zoomInBtn = document.getElementById("zoom-in-btn");
+const zoomSlider = document.getElementById("zoom-slider");
+const zoomLabel = document.getElementById("zoom-label");
 const listBtn = document.getElementById("list-btn");
 const numberedListBtn = document.getElementById("numbered-list-btn");
 const checklistBtn = document.getElementById("checklist-btn");
@@ -790,19 +798,27 @@ function applyInlineFormatting(text) {
   return out;
 }
 
+function hasRichFormatting(el) {
+  return !!el.querySelector("strong, b, em, i, u, s, strike, mark, a, span");
+}
+
 function finalizeBlock(el) {
   if (!el || !el.isConnected || !bodyEditor.contains(el)) return;
   if (el.tagName === "TABLE" || el.classList.contains("toc-block")) return;
   if (el.tagName === "LI") {
     if (el.closest("ul.checklist")) return; // non toccare il segno di spunta
+    if (hasRichFormatting(el)) return; // non distruggere grassetto/colori/evidenziazioni già applicati
     const raw = el.textContent;
     el.innerHTML = applyInlineFormatting(raw);
     return;
   }
   if (el.tagName === "H1" || el.tagName === "H2") {
+    if (hasRichFormatting(el)) return;
     el.innerHTML = applyInlineFormatting(el.textContent);
     return;
   }
+  if (hasRichFormatting(el)) return; // idem per i paragrafi normali
+
   const raw = el.textContent;
   const trimmed = raw.trim();
 
@@ -1028,7 +1044,24 @@ checklistBtn.addEventListener("click", () => {
   scheduleSave();
 });
 
-function toggleInlineWrap(tag, className) {
+const HIGHLIGHT_COLORS = [
+  { name: "Giallo", hex: "#FDE047" },
+  { name: "Verde", hex: "#86EFAC" },
+  { name: "Azzurro", hex: "#93C5FD" },
+  { name: "Rosa", hex: "#F9A8D4" },
+  { name: "Arancione", hex: "#FDBA74" }
+];
+const TEXT_COLORS = [
+  { name: "Rosso", hex: "#C0392B" },
+  { name: "Blu", hex: "#2E5C8A" },
+  { name: "Verde", hex: "#2E7D4F" },
+  { name: "Viola", hex: "#6B4E8E" },
+  { name: "Arancione", hex: "#B5651D" }
+];
+
+// applica/rimuove/cambia un colore avvolgendo la selezione in un elemento
+// (usato sia per l'evidenziatore che per il colore del testo)
+function applyColorWrap(tag, className, cssProp, hex) {
   const sel = window.getSelection();
   if (!sel || !sel.rangeCount) return;
   const range = sel.getRangeAt(0);
@@ -1039,32 +1072,121 @@ function toggleInlineWrap(tag, className) {
   const existing = container && container.closest ? container.closest("." + className) : null;
 
   if (existing && bodyEditor.contains(existing)) {
-    // basta appoggiare il cursore dentro (anche senza riselezionare) per togliere l'effetto
-    const parent = existing.parentNode;
-    while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
-    parent.removeChild(existing);
-    sel.removeAllRanges();
-    scheduleSave();
-    return;
-  }
-
-  if (sel.isCollapsed) return; // niente selezionato: non c'è testo da evidenziare/sottolineare
-
-  const wrapper = document.createElement(tag);
-  wrapper.className = className;
-  try {
-    range.surroundContents(wrapper);
-  } catch (err) {
-    const contents = range.extractContents();
-    wrapper.appendChild(contents);
-    range.insertNode(wrapper);
+    if (hex === null) {
+      // rimuovi: basta appoggiare il cursore dentro, senza dover riselezionare
+      const parent = existing.parentNode;
+      while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+      parent.removeChild(existing);
+    } else {
+      existing.style[cssProp] = hex; // cambia colore a un'evidenziazione/colore già presente
+    }
+  } else if (hex !== null && !sel.isCollapsed) {
+    const wrapper = document.createElement(tag);
+    wrapper.className = className;
+    wrapper.style[cssProp] = hex;
+    try {
+      range.surroundContents(wrapper);
+    } catch (err) {
+      const contents = range.extractContents();
+      wrapper.appendChild(contents);
+      range.insertNode(wrapper);
+    }
   }
   sel.removeAllRanges();
   scheduleSave();
 }
 
-highlightBtn.addEventListener("click", () => { bodyEditor.focus(); toggleInlineWrap("mark", "hl"); });
-fineUnderlineBtn.addEventListener("click", () => { bodyEditor.focus(); toggleInlineWrap("span", "fine-underline"); });
+// ---------------------------------------------------------------------------
+// Pannelli colore (evidenziatore, colore testo)
+// ---------------------------------------------------------------------------
+
+function buildSwatches(popover, colors, onPick) {
+  popover.innerHTML = "";
+  colors.forEach(c => {
+    const sw = document.createElement("button");
+    sw.className = "fmt-swatch";
+    sw.style.background = c.hex;
+    sw.title = c.name;
+    sw.addEventListener("mousedown", (e) => e.preventDefault()); // non perdere la selezione
+    sw.addEventListener("click", () => onPick(c.hex));
+    popover.appendChild(sw);
+  });
+  const removeSw = document.createElement("button");
+  removeSw.className = "fmt-swatch fmt-swatch-remove";
+  removeSw.textContent = "✕";
+  removeSw.title = "Nessuno";
+  removeSw.addEventListener("mousedown", (e) => e.preventDefault());
+  removeSw.addEventListener("click", () => onPick(null));
+  popover.appendChild(removeSw);
+}
+
+function openPopover(popover, anchorBtn) {
+  closeAllPopovers();
+  const rect = anchorBtn.getBoundingClientRect();
+  popover.style.top = (rect.bottom + 8) + "px";
+  popover.style.left = Math.max(8, Math.min(rect.left - 30, window.innerWidth - 220)) + "px";
+  popover.classList.add("active");
+}
+
+function closeAllPopovers() {
+  hlPopover.classList.remove("active");
+  tcPopover.classList.remove("active");
+}
+
+buildSwatches(hlPopover, HIGHLIGHT_COLORS, (hex) => {
+  applyColorWrap("mark", "hl", "backgroundColor", hex);
+  closeAllPopovers();
+});
+buildSwatches(tcPopover, TEXT_COLORS, (hex) => {
+  applyColorWrap("span", "tc", "color", hex);
+  if (hex) textcolorSwatch.style.background = hex;
+  closeAllPopovers();
+});
+
+highlightBtn.addEventListener("click", () => {
+  bodyEditor.focus();
+  if (hlPopover.classList.contains("active")) { closeAllPopovers(); return; }
+  openPopover(hlPopover, highlightBtn);
+});
+textcolorBtn.addEventListener("click", () => {
+  bodyEditor.focus();
+  if (tcPopover.classList.contains("active")) { closeAllPopovers(); return; }
+  openPopover(tcPopover, textcolorBtn);
+});
+strikethroughBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("strikeThrough"); scheduleSave(); });
+
+document.addEventListener("mousedown", (e) => {
+  if (!e.target.closest(".fmt-popover") && !e.target.closest("#highlight-btn") && !e.target.closest("#textcolor-btn")) {
+    closeAllPopovers();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Zoom pagina (come in Pages/Word) — solo su questo dispositivo, non sincronizzato
+// ---------------------------------------------------------------------------
+
+const ZOOM_STORAGE_KEY = "margine-zoom";
+
+function applyZoom(value) {
+  const clamped = Math.max(60, Math.min(160, value));
+  document.documentElement.style.setProperty("--zoom-level", clamped / 100);
+  zoomSlider.value = clamped;
+  zoomLabel.textContent = clamped + "%";
+  try { localStorage.setItem(ZOOM_STORAGE_KEY, String(clamped)); } catch (e) { /* ignore */ }
+}
+
+(function initZoom() {
+  let saved = 100;
+  try {
+    const stored = parseInt(localStorage.getItem(ZOOM_STORAGE_KEY), 10);
+    if (Number.isFinite(stored)) saved = stored;
+  } catch (e) { /* ignore */ }
+  applyZoom(saved);
+})();
+
+zoomSlider.addEventListener("input", () => applyZoom(Number(zoomSlider.value)));
+zoomOutBtn.addEventListener("click", () => applyZoom(Number(zoomSlider.value) - 10));
+zoomInBtn.addEventListener("click", () => applyZoom(Number(zoomSlider.value) + 10));
 
 // ---------------------------------------------------------------------------
 // Tabelle
@@ -1215,7 +1337,8 @@ function updateToolbarState() {
   italicBtn.classList.toggle("active", selectionHasAncestor("i,em"));
   underlineBtn.classList.toggle("active", selectionHasAncestor("u"));
   highlightBtn.classList.toggle("active", selectionHasAncestor(".hl"));
-  fineUnderlineBtn.classList.toggle("active", selectionHasAncestor(".fine-underline"));
+  strikethroughBtn.classList.toggle("active", selectionHasAncestor("s,strike,del"));
+  textcolorBtn.classList.toggle("active", selectionHasAncestor(".tc"));
 
   toggle(listBtn, "insertUnorderedList");
   toggle(numberedListBtn, "insertOrderedList");
