@@ -573,22 +573,23 @@
     border-radius: 6px;
     box-shadow: 0 2px 20px rgba(50, 40, 15, 0.12), 0 0 0 1px rgba(50, 40, 15, 0.04);
     min-height: calc(100vh - 300px);
-    zoom: var(--zoom-level, 1);
+    transform: scale(var(--zoom-level, 1));
+    transform-origin: top center;
   }
   @media (max-width: 560px) {
     .document-page { padding: 30px 22px; }
   }
 
   .zoom-control {
-    position: absolute;
+    position: fixed;
     right: 16px;
-    bottom: 16px;
+    bottom: max(16px, env(safe-area-inset-bottom));
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 6px 10px;
     border-radius: var(--radius-pill);
-    z-index: 6;
+    z-index: 40;
   }
   .zoom-control .icon-btn { width: 28px; height: 28px; font-size: 16px; font-weight: 600; }
   #zoom-slider { width: 90px; accent-color: var(--ink-strong); }
@@ -606,7 +607,7 @@
     -webkit-backdrop-filter: blur(22px) saturate(180%);
     border: 1px solid var(--surface-border);
     box-shadow: var(--glass-shadow);
-    z-index: 30;
+    z-index: 45;
   }
   .fmt-popover.active { display: flex; }
   .fmt-swatch {

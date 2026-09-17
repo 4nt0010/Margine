@@ -1013,7 +1013,39 @@ styleSelect.addEventListener("change", () => {
 
 boldBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("bold"); scheduleSave(); });
 italicBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("italic"); scheduleSave(); });
-underlineBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("underline"); scheduleSave(); });
+function toggleUnderline() {
+  const sel = window.getSelection();
+  if (!sel || !sel.rangeCount) return;
+  const range = sel.getRangeAt(0);
+  if (!bodyEditor.contains(range.commonAncestorContainer)) return;
+
+  let container = range.commonAncestorContainer;
+  if (container.nodeType === 3) container = container.parentElement;
+  const existing = container && container.closest ? container.closest("u") : null;
+
+  if (existing && bodyEditor.contains(existing)) {
+    const parent = existing.parentNode;
+    while (existing.firstChild) parent.insertBefore(existing.firstChild, existing);
+    parent.removeChild(existing);
+    sel.removeAllRanges();
+    scheduleSave();
+    return;
+  }
+
+  if (sel.isCollapsed) return; // niente selezionato: non c'è testo da sottolineare
+
+  const wrapper = document.createElement("u");
+  try {
+    range.surroundContents(wrapper);
+  } catch (err) {
+    const contents = range.extractContents();
+    wrapper.appendChild(contents);
+    range.insertNode(wrapper);
+  }
+  sel.removeAllRanges();
+  scheduleSave();
+}
+underlineBtn.addEventListener("click", () => { bodyEditor.focus(); toggleUnderline(); });
 listBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("insertUnorderedList"); scheduleSave(); });
 numberedListBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("insertOrderedList"); scheduleSave(); });
 alignLeftBtn.addEventListener("click", () => { bodyEditor.focus(); document.execCommand("justifyLeft"); scheduleSave(); });
@@ -1123,7 +1155,8 @@ function buildSwatches(popover, colors, onPick) {
 function openPopover(popover, anchorBtn) {
   closeAllPopovers();
   const rect = anchorBtn.getBoundingClientRect();
-  popover.style.top = (rect.bottom + 8) + "px";
+  const top = Math.min(rect.bottom + 8, window.innerHeight - 60);
+  popover.style.top = top + "px";
   popover.style.left = Math.max(8, Math.min(rect.left - 30, window.innerWidth - 220)) + "px";
   popover.classList.add("active");
 }
